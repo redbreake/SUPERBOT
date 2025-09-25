@@ -1,0 +1,15 @@
+# Archivos de configuración local
+.env
+
+# Archivos de tokens y sesiones
+youtube_token.json
+
+# Dependencias de Node
+node_modules/
+
+# Archivos de puntuaciones y datos
+*.json
+
+# Archivos del sistema operativo
+.DS_Store
+npm-debug.log*
