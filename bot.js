@@ -239,7 +239,35 @@ const client = new tmi.Client({ options: { debug: true, messagesLogLevel: "info"
 const SCOPES = ['https.www.googleapis.com/auth/youtube']; const TOKEN_PATH = 'youtube_token.json'; const oauth2Client = new google.auth.OAuth2(config.GOOGLE_CLIENT_ID, config.GOOGLE_CLIENT_SECRET, config.GOOGLE_REDIRECT_URI); const youtube = google.youtube({ version: 'v3', auth: oauth2Client });
 async function applyTimeout(channel, targetUsername, duration, reason) { try { const broadcasterId = (await axios.get(`https://api.twitch.tv/helix/users?login=${config.CHANNEL_NAME}`, { headers: { 'Client-ID': config.TWITCH_CLIENT_ID, 'Authorization': `Bearer ${config.TWITCH_ACCESS_TOKEN}` } })).data.data[0].id; const targetUserResponse = await axios.get(`https://api.twitch.tv/helix/users?login=${targetUsername}`, { headers: { 'Client-ID': config.TWITCH_CLIENT_ID, 'Authorization': `Bearer ${config.TWITCH_ACCESS_TOKEN}` } }); if (targetUserResponse.data.data.length === 0) { client.say(channel, `El usuario '${targetUsername}' no existe.`); return false } const targetUserId = targetUserResponse.data.data[0].id; await axios.post(`https://api.twitch.tv/helix/moderation/bans?broadcaster_id=${broadcasterId}&moderator_id=${BOT_USER_ID}`, { data: { user_id: targetUserId, duration: duration, reason: reason } }, { headers: { 'Client-ID': config.TWITCH_CLIENT_ID, 'Authorization': `Bearer ${config.TWITCH_ACCESS_TOKEN}`, 'Content-Type': 'application/json' } }); return true } catch (e) { console.error(`Error al aplicar timeout a ${targetUsername}:`, e.response ? e.response.data : e.message); client.say(channel, `Hubo un error al intentar dar timeout a @${targetUsername}.`); return false } }
 function isAuthorized(username) { return config.AUTHORIZED_USERS.includes(username.toLowerCase()) }
-async function getAccessToken() { try { const t = fs.readFileSync(TOKEN_PATH); oauth2Client.setCredentials(JSON.parse(t)); return true } catch (e) { return await generateNewToken() } }
+async function getAccessToken() {
+    try {
+        // Primero intentamos leer desde variable de entorno (para Render/Servidores)
+        if (process.env.YOUTUBE_TOKEN_JSON) {
+            const token = JSON.parse(process.env.YOUTUBE_TOKEN_JSON);
+            oauth2Client.setCredentials(token);
+            console.log("✅ Token de YouTube cargado desde variable de entorno.");
+            return true;
+        }
+
+        // Luego intentamos leer el archivo local
+        if (fs.existsSync(TOKEN_PATH)) {
+            const t = fs.readFileSync(TOKEN_PATH);
+            oauth2Client.setCredentials(JSON.parse(t));
+            return true;
+        }
+
+        // Si no hay nada, solo intentamos generar si es interactivo
+        if (process.stdin.isTTY) {
+            return await generateNewToken();
+        } else {
+            console.warn("⚠️ No se encontró token de YouTube y el entorno no es interactivo.");
+            return false;
+        }
+    } catch (e) {
+        console.error("❌ Error en getAccessToken:", e.message);
+        return false;
+    }
+}
 async function generateNewToken() { const authUrl = oauth2Client.generateAuthUrl({ access_type: 'offline', scope: SCOPES }); console.log('🔑 Autoriza esta aplicación (YouTube) visitando esta URL:', authUrl); const rl = readline.createInterface({ input: process.stdin, output: process.stdout }); return new Promise((resolve, reject) => { rl.question('Ingresa el código de autorización: ', async (code) => { rl.close(); try { const { tokens: t } = await oauth2Client.getToken(code); oauth2Client.setCredentials(t); fs.writeFileSync(TOKEN_PATH, JSON.stringify(t)); console.log('✅ Token de YouTube guardado en', TOKEN_PATH); resolve(true) } catch (e) { console.error('❌ Error obteniendo token de YouTube:', e); reject(false) } }) }) }
 function extractVideoId(url) {
     const p = /(?:youtube\.com\/(?:watch\?v=|embed\/|v\/|shorts\/)|youtu\.be\/|m\.youtube\.com\/watch\?v=|music\.youtube\.com\/watch\?v=)([a-zA-Z0-9_-]{11})/;
@@ -936,13 +964,17 @@ async function onMessageHandler(channel, tags, message, self) {
 // =============================================================================
 
 async function startBot() {
-    // 1. Autenticar con YouTube (si está configurado)
+    // 1. Autenticar con YouTube (No bloqueante)
     if (config.GOOGLE_CLIENT_ID) {
-        if (await getAccessToken()) {
-            console.log("[v] Módulo de Playlist de YouTube cargado.");
-        } else {
-            console.warn("⚠️  Advertencia: Playlist de YouTube no funcionará.");
-        }
+        getAccessToken().then(success => {
+            if (success) {
+                console.log("[v] Módulo de Playlist de YouTube cargado.");
+            } else {
+                console.warn("⚠️ Advertencia: El módulo de YouTube está listo pero sin tokens. Las canciones no se añadirán automáticamente.");
+            }
+        }).catch(err => {
+            console.error("❌ Error inicializando YouTube:", err.message);
+        });
     } else {
         console.log("[ ] Módulo de Playlist de YouTube desactivado.");
     }
