@@ -11,9 +11,6 @@ const fs = require('fs');
 const readline = require('readline');
 const axios = require('axios');
 const path = require('path');
-const express = require('express');
-
-
 
 // --- CONFIGURACIÓN Y ESTADO GLOBAL ---
 const config = {
@@ -40,7 +37,7 @@ const COUPON_BIT_PRICE = 30;
 const linkWarnings = {};
 // --> AÑADE ESTAS DOS LÍNEAS
 const linkPermits = {}; // Guardará los permisos temporales para links
-const PERMA_WHITELIST_USERS = ['kawada_tenshi', 'shikijoumadame', 'redbreakebot', 'kalaa']; // Usuarios inmunes a la auto-moderación
+const PERMA_WHITELIST_USERS = ['kawada_tenshi', 'shikijoumadame']; // Usuarios inmunes a la auto-moderación
 let commandEditorState = {
     isActive: false,
     commandName: null,
@@ -100,88 +97,7 @@ function findLinks(message) {
     return message.match(urlPattern) || [];
 }
 
-class KaraokeSystem {
-    constructor(lyricsDir) {
-        this.lyricsDir = lyricsDir;
-        this.activeTimeouts = [];
-        this.isPlaying = false;
-        this.currentSong = null;
-    }
-
-    loadLrc(filename) {
-        const filePath = path.join(this.lyricsDir, filename.endsWith('.lrc') ? filename : `${filename}.lrc`);
-        if (!fs.existsSync(filePath)) return null;
-
-        const content = fs.readFileSync(filePath, 'utf8');
-        const lines = content.split('\n');
-        const lyrics = [];
-
-        // Regex para capturar [mm:ss.ms] o [mm:ss] y el texto
-        const timeRegex = /\[(\d{2}):(\d{2})(?:\.(\d{2,3}))?\](.*)/;
-
-        for (const line of lines) {
-            const match = line.match(timeRegex);
-            if (match) {
-                const minutes = parseInt(match[1]);
-                const seconds = parseInt(match[2]);
-                const ms = match[3] ? parseInt(match[3].padEnd(3, '0').substring(0, 3)) : 0;
-
-                const totalMs = (minutes * 60 * 1000) + (seconds * 1000) + ms;
-                const text = match[4].trim();
-
-                if (text) { // Solo añadir si hay texto
-                    lyrics.push({ time: totalMs, text: text });
-                }
-            }
-        }
-        return lyrics.sort((a, b) => a.time - b.time);
-    }
-
-    play(channel, filename) {
-        this.stop(); // Detener cualquier canción anterior
-
-        const lyrics = this.loadLrc(filename);
-        if (!lyrics) return false;
-
-        this.isPlaying = true;
-        this.currentSong = filename;
-        client.say(channel, `🎤 Iniciando Karaoke: ${filename} 🎶`);
-
-        const startTime = Date.now();
-
-        lyrics.forEach(line => {
-            const timeoutId = setTimeout(() => {
-                if (this.isPlaying) {
-                    client.say(channel, `🎶 ${line.text}`);
-                }
-            }, line.time);
-            this.activeTimeouts.push(timeoutId);
-        });
-
-        // Timeout final para limpiar estado
-        const lastLineTime = lyrics[lyrics.length - 1].time;
-        const endTimeout = setTimeout(() => {
-            this.stop(false); // False para no decir "detenido por usuario"
-            client.say(channel, `🎤 Fin de la canción. 👏👏👏`);
-        }, lastLineTime + 2000);
-        this.activeTimeouts.push(endTimeout);
-
-        return true;
-    }
-
-    stop(notify = true) {
-        if (!this.isPlaying) return false;
-
-        this.activeTimeouts.forEach(id => clearTimeout(id));
-        this.activeTimeouts = [];
-        this.isPlaying = false;
-        this.currentSong = null;
-
-        return true;
-    }
-}
-
-const karaoke = new KaraokeSystem(path.join(__dirname, 'lyrics'));
+// --> AÑADE ESTA NUEVA FUNCIÓN PARA CONSTRUIR LA PIRÁMIDE
 async function buildPyramid(channel, emote, size) {
     const delay = 200; // 1.5 segundos de pausa para evitar el spam-filter de Twitch
 
@@ -225,7 +141,7 @@ function isAsciiArt(message) {
 
     // Contamos cuántos caracteres NO son letras, números o espacios.
     const nonAlphanumericChars = (message.match(/[^a-zA-Z0-9\s]/g) || []).length;
-
+    
     // Calculamos el porcentaje de símbolos en el mensaje.
     const symbolPercentage = nonAlphanumericChars / message.length;
 
@@ -241,86 +157,14 @@ async function applyTimeout(channel, targetUsername, duration, reason) { try { c
 function isAuthorized(username) { return config.AUTHORIZED_USERS.includes(username.toLowerCase()) }
 async function getAccessToken() { try { const t = fs.readFileSync(TOKEN_PATH); oauth2Client.setCredentials(JSON.parse(t)); return true } catch (e) { return await generateNewToken() } }
 async function generateNewToken() { const authUrl = oauth2Client.generateAuthUrl({ access_type: 'offline', scope: SCOPES }); console.log('🔑 Autoriza esta aplicación (YouTube) visitando esta URL:', authUrl); const rl = readline.createInterface({ input: process.stdin, output: process.stdout }); return new Promise((resolve, reject) => { rl.question('Ingresa el código de autorización: ', async (code) => { rl.close(); try { const { tokens: t } = await oauth2Client.getToken(code); oauth2Client.setCredentials(t); fs.writeFileSync(TOKEN_PATH, JSON.stringify(t)); console.log('✅ Token de YouTube guardado en', TOKEN_PATH); resolve(true) } catch (e) { console.error('❌ Error obteniendo token de YouTube:', e); reject(false) } }) }) }
-function extractVideoId(url) {
-    const p = /(?:youtube\.com\/(?:watch\?v=|embed\/|v\/|shorts\/)|youtu\.be\/|m\.youtube\.com\/watch\?v=|music\.youtube\.com\/watch\?v=)([a-zA-Z0-9_-]{11})/;
-    const m = url.match(p);
-    return m ? m[1] : null;
-}
-function findYouTubeUrls(message) {
-    const p = /https?:\/\/(?:www\.|m\.|music\.)?(?:youtube\.com\/(?:watch\?v=|embed\/|v\/|shorts\/)|youtu\.be\/)[\w-&?=]+/g;
-    return message.match(p) || [];
-}
+function extractVideoId(url) { const p = /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/; const m = url.match(p); return m ? m[1] : null }
+function findYouTubeUrls(message) { const p = /https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)[\w-]+/g; return message.match(p) || [] }
 async function getVideoTitle(videoId) { try { const r = await youtube.videos.list({ part: 'snippet', id: videoId }); return r.data.items[0]?.snippet?.title || 'Título no disponible' } catch (e) { return 'Título no disponible' } }
 async function isVideoInPlaylist(videoId) { try { let t = null; do { const r = await youtube.playlistItems.list({ part: 'snippet', playlistId: config.PLAYLIST_ID, maxResults: 50, pageToken: t }); if (r.data.items.some(i => i.snippet.resourceId.videoId === videoId)) return true; t = r.data.nextPageToken } while (t); return false } catch (e) { return false } }
 async function addToPlaylist(videoId, username) { try { await youtube.playlistItems.insert({ part: 'snippet', requestBody: { snippet: { playlistId: config.PLAYLIST_ID, resourceId: { kind: 'youtube#video', videoId: videoId } } } }); return true } catch (e) { return false } }
 async function processSongQueue() { if (isProcessingQueue || songQueue.length === 0) return; isProcessingQueue = true; const request = songQueue.shift(); const success = await addToPlaylist(request.videoId, request.username); if (success) { if (request.bits > 0) { const baseMsg = `🎵 ¡Gracias por los ${request.bits} bits, @${request.username}! Se agregó "${request.title}" a la playlist`; if (request.isCoupon) { let remainingMsg = `¡Quedan ${couponCount} cupones! 🎟️`; if (couponCount === 0) remainingMsg = '¡Se ha usado el último cupón!'; client.say(request.channel, `${baseMsg} usando un cupón. ${remainingMsg}`) } else { client.say(request.channel, `${baseMsg}. 💎`) } } else { client.say(request.channel, `🎵 ¡Canción "${request.title}" agregada por @${request.username}! `) } } else { client.say(request.channel, `❌ Hubo un error al agregar tu canción, @${request.username}.`) } isProcessingQueue = false }
 setInterval(processSongQueue, 5000);
-async function handleSongRequest(channel, tags, message, bitsAmount = 0) {
-    const username = tags.username.toLowerCase();
-    let isCouponRedemption = false, canAddSong = false;
-
-    console.log(`[SONG REQUEST] De: ${username} | Bits: ${bitsAmount} | Cupones actuales: ${couponCount}`);
-
-    if (couponCount > 0 && (Number(bitsAmount) == Number(COUPON_BIT_PRICE))) {
-        isCouponRedemption = true;
-        canAddSong = true;
-        console.log(`[SONG REQUEST] Redención de cupón detectada.`);
-    } else if (Number(bitsAmount) >= Number(config.MIN_BITS_SONG)) {
-        canAddSong = true;
-    } else if (bitsAmount === 0 && isAuthorized(username) && message.toLowerCase().startsWith('!añadir')) {
-        canAddSong = true;
-    }
-
-    if (!canAddSong) {
-        if (bitsAmount > 0) console.log(`[SONG REQUEST] Bits insuficientes para canción o cupón (${bitsAmount}).`);
-        return;
-    }
-
-    if (isCouponRedemption) {
-        couponCount--;
-    }
-
-    const youtubeUrls = findYouTubeUrls(message);
-    if (youtubeUrls.length > 0) {
-        const videoId = extractVideoId(youtubeUrls[0]);
-        console.log(`[SONG REQUEST] URL detectada: ${youtubeUrls[0]} | VideoID: ${videoId}`);
-
-        if (videoId) {
-            if (await isVideoInPlaylist(videoId)) {
-                client.say(channel, `🤔 La canción ya está en la playlist, @${tags.username}.`);
-                if (isCouponRedemption) {
-                    couponCount++;
-                    console.log(`[SONG REQUEST] Canción duplicada. Cupón devuelto. Cupones: ${couponCount}`);
-                }
-                return;
-            }
-            const title = await getVideoTitle(videoId);
-            songQueue.push({ videoId: videoId, username: tags.username, channel: channel, title: title, bits: bitsAmount, isCoupon: isCouponRedemption });
-        } else {
-            if (bitsAmount > 0) {
-                if (!isCouponRedemption) {
-                    client.say(channel, `💎 Gracias por los ${bitsAmount} bits, @${tags.username}, pero el link no es válido.`);
-                }
-                console.log(`[SONG REQUEST] Link inválido.`);
-            }
-            if (isCouponRedemption) {
-                couponCount++;
-                console.log(`[SONG REQUEST] Link inválido. Cupón devuelto. Cupones: ${couponCount}`);
-            }
-        }
-    } else {
-        if (bitsAmount > 0) {
-            if (!isCouponRedemption) {
-                client.say(channel, `💎 ¡Gracias por las ${bitsAmount} piedritas, @${tags.username}! Si quieres un video, incluye el link.`);
-            }
-            console.log(`[SONG REQUEST] No se encontró link en el mensaje.`);
-        }
-        if (isCouponRedemption) {
-            couponCount++;
-            console.log(`[SONG REQUEST] Mensaje sin link. Cupón devuelto. Cupones: ${couponCount}`);
-        }
-    }
-}
+async function handleSongRequest(channel, tags, message, bitsAmount = 0) { const username = tags.username.toLowerCase(); let isCouponRedemption = false, canAddSong = false; if (couponCount > 0 && bitsAmount === COUPON_BIT_PRICE) { isCouponRedemption = true; canAddSong = true } else if (bitsAmount >= config.MIN_BITS_SONG) { canAddSong = true } else if (bitsAmount === 0 && isAuthorized(username) && message.toLowerCase().startsWith('!añadir')) { canAddSong = true } if (!canAddSong) return; if (isCouponRedemption) { couponCount--; } const youtubeUrls = findYouTubeUrls(message); if (youtubeUrls.length > 0) { const videoId = extractVideoId(youtubeUrls[0]); if (videoId) { if (await isVideoInPlaylist(videoId)) { client.say(channel, `🤔 La canción ya está en la playlist, @${tags.username}.`); if (isCouponRedemption) couponCount++; return } const title = await getVideoTitle(videoId); songQueue.push({ videoId: videoId, username: tags.username, channel: channel, title: title, bits: bitsAmount, isCoupon: isCouponRedemption }) } else { if (bitsAmount > 0) client.say(channel, `💎 Gracias por los ${bitsAmount} bits, @${tags.username}, pero el link no es válido.`); if (isCouponRedemption) couponCount++; } } else { if (bitsAmount > 0) client.say(channel, `💎 ¡Gracias por las ${bitsAmount} piedritas, @${tags.username}! Si quieres un video, incluye el link.`); if (isCouponRedemption) couponCount++; } }
 
 // =============================================================================
 // ==                        MANEJADORES DE EVENTOS (CORE)                      ==
@@ -339,8 +183,8 @@ async function onMessageHandler(channel, tags, message, self) {
     const messageLower = message.toLowerCase();
     const username = tags.username;
     const isMod = tags.mod || isAuthorized(username);
-
-    // =================================================================
+    
+     // =================================================================
     // ==   BLOQUE PARA EL ATAJO DE EDICIÓN (+) - VERSIÓN INSTANTÁNEA   ==
     // =================================================================
     if (message.startsWith('+') && commandEditorState.isActive) {
@@ -354,49 +198,49 @@ async function onMessageHandler(channel, tags, message, self) {
         }
 
         // --- LÓGICA MODIFICADA (INSTANTÁNEA) ---
-
+        
         // 1. Construimos el nuevo contenido completo
         const newContent = `${commandEditorState.currentContent} ${textToAdd}`;
-
+        
         // 2. ENVIAMOS EL COMANDO DE EDICIÓN INMEDIATAMENTE
         client.say(channel, `!cmd edit ${commandEditorState.commandName} ${newContent}`);
-
+        
         // 3. ACTUALIZAMOS el contenido en memoria para el siguiente '+'
         commandEditorState.currentContent = newContent;
-
+        
         // 4. Damos feedback al mod de que la acción se ha completado
         //client.say(channel, `Comando ${commandEditorState.commandName} actualizado por @${username}.`);
-
+        
         // NOTA: NO reseteamos el estado de edición aquí.
         // El modo edición sigue activo para poder añadir más cosas.
-
+        
         return; // Detenemos el procesamiento para que no se active nada más
     }
     // =================================================================
     // ==                     FIN DEL BLOQUE (+)                      ==
     // =================================================================
-    // Reemplaza el bloque de auto-moderación que ya tienes con este:
-    // =================================================================
+// Reemplaza el bloque de auto-moderación que ya tienes con este:
+// =================================================================
     // ==          LÓGICA DEL DUELO DEL OESTE (1 vs 1)                ==
     // =================================================================
-
+    
     // Solo procesamos si hay un duelo activo y habla uno de los participantes
     if (westernDuel.step > 0 && (username.toLowerCase() === westernDuel.challenger || username.toLowerCase() === westernDuel.target)) {
-
+        
         // FASE 1: Aceptar el duelo
         if (westernDuel.step === 1 && username.toLowerCase() === westernDuel.target) {
             if (messageLower === 'si' || messageLower === 'acepto' || messageLower === 'sí' || messageLower === 'gogogo') {
                 westernDuel.step = 2; // Pasamos a fase de tensión
                 client.say(channel, `⚔️ Duelo aceptado. Miradas fijas... manos en la cartuchera... (Escribid BANG a mi señal)`);
-
+                
                 // Tiempo aleatorio entre 3 y 10 segundos
                 const delay = Math.floor(Math.random() * 7000) + 3000;
-
+                
                 westernDuel.timer = setTimeout(() => {
                     if (westernDuel.step === 2) { // Si nadie disparó antes de tiempo
                         westernDuel.step = 3; // FASE DE DISPARO
                         client.say(channel, "🔫 ¡¡¡ BANG !!! 🔫");
-
+                        
                         // Si nadie dispara en 10 segundos, se cancela
                         setTimeout(() => {
                             if (westernDuel.step === 3) {
@@ -413,19 +257,19 @@ async function onMessageHandler(channel, tags, message, self) {
         // FASE 2: Falsa Salida (Disparar antes del BANG)
         if (westernDuel.step === 2 && messageLower === 'bang') {
             clearTimeout(westernDuel.timer); // Cancelamos el BANG del bot
-
+            
             client.say(channel, `🚫 ¡Falsa salida! @${username} se puso nervioso y disparó al suelo. Pierdes el duelo.`);
             await applyTimeout(channel, username, 30, "Falsa salida en duelo del oeste");
-
+            
             // El otro gana automáticamente
             const winner = (username.toLowerCase() === westernDuel.challenger) ? westernDuel.target : westernDuel.challenger;
             client.say(channel, `🏆 @${winner} gana por descalificación.`);
-
+            
             westernDuel = { step: 0, challenger: null, target: null, timer: null };
             return;
         }
 
-        // FASE 3: Disparo Real (El primero que escribe BANG gana)
+// FASE 3: Disparo Real (El primero que escribe BANG gana)
         if (westernDuel.step === 3 && messageLower === 'bang') {
             // 1. ¡IMPORTANTE! Cerramos el duelo INMEDIATAMENTE para que nadie más pueda ganar.
             // Al poner step en 0 aquí, bloqueamos cualquier mensaje que llegue 1 milisegundo después.
@@ -434,13 +278,13 @@ async function onMessageHandler(channel, tags, message, self) {
 
             const winner = username;
             const loser = (winner.toLowerCase() === westernDuel.challenger) ? westernDuel.target : westernDuel.challenger;
-
+            
             // 2. Anunciamos al ganador
             client.say(channel, `🤠 🔫 ¡POW! @${winner} ha sido más rápido. @${loser} cae al suelo.`);
-
+            
             // 3. Aplicamos el castigo (ahora da igual si tarda, el duelo ya está cerrado)
             applyTimeout(channel, loser, 30, `Perdió el duelo del oeste contra ${winner}`).catch(err => console.error("Error en timeout duelo:", err));
-
+            
             // Limpiamos el resto de variables
             westernDuel = { step: 0, challenger: null, target: null, timer: null };
             return;
@@ -451,7 +295,7 @@ async function onMessageHandler(channel, tags, message, self) {
     // =================================================================
     // ==     BLOQUE DE AUTO-MODERACIÓN ACTUALIZADO (v2)              ==
     // =================================================================
-
+    
     // EXCEPCIÓN PERMANENTE: Si el usuario está en la whitelist, ignoramos toda la auto-moderación.
     if (PERMA_WHITELIST_USERS.includes(username.toLowerCase())) {
         // No hacemos nada, el mensaje pasa limpio.
@@ -460,7 +304,7 @@ async function onMessageHandler(channel, tags, message, self) {
         if (isAsciiArt(message)) {
             await deleteChatMessage(channel, tags.id);
             const reason = "Publicación de arte ASCII no permitido.";
-            applyTimeout(channel, username, 604800, reason);
+            applyTimeout(channel, username, 604800, reason); 
             client.say(channel, `@${username}, los dibujos con símbolos (arte ASCII) no están permitidos. Has recibido un timeout de 7 días.`);
             return;
         }
@@ -469,7 +313,7 @@ async function onMessageHandler(channel, tags, message, self) {
         if (findLinks(message).length > 0) {
             // Comprobamos si el usuario NO tiene privilegios (sub/mod/bits)
             if (!isUserPrivileged(tags) && !tags.bits) {
-
+                
                 // EXCEPCIÓN TEMPORAL: Comprobamos si el usuario tiene un !permit activo
                 if (linkPermits[username] && Date.now() < linkPermits[username]) {
                     // El permiso es válido, así que lo consumimos y dejamos pasar el mensaje.
@@ -502,28 +346,28 @@ async function onMessageHandler(channel, tags, message, self) {
     if (activeReto.isActive && username.toLowerCase() === activeReto.challenged && (messageLower === 'si' || messageLower === 'acepto' || messageLower === 'sí')) {
         const challenger = activeReto.challenger;
         const challenged = activeReto.challenged;
-
+        
         // Desactivamos el reto inmediatamente para evitar dobles aceptaciones
         activeReto = { isActive: false, challenger: null, challenged: null, timestamp: null };
-
+        
         client.say(channel, `¡${challenged} ha aceptado el reto de ${challenger}! La pelea comienza...`);
-
+        
         // Esperamos 2 segundos para crear suspense
         await new Promise(resolve => setTimeout(resolve, 2000));
-
+        
         const winner = Math.random() < 0.5 ? challenger : challenged;
         const loser = winner === challenger ? challenged : challenger;
-
+        
         let duration = 30; // Duración normal del timeout
         // 1% de probabilidad de golpe crítico para un timeout de 10 minutos
-        if (Math.random() < 0.11) {
-            duration = 1200;
-            client.say(channel, `💥 ¡GOLPE CRÍTICO! 💥`);
+        if (Math.random() < 0.11) { 
+            duration = 1200; 
+            client.say(channel, `💥 ¡GOLPE CRÍTICO! 💥`); 
         }
-
+        
         client.say(channel, `¡${winner} ha derrotado a ${loser}! Como castigo, @${loser} recibe un timeout de ${duration} segundos.`);
         await applyTimeout(channel, loser, duration, `Perdió el reto contra ${winner}.`);
-
+        
         return; // Detenemos el procesamiento aquí porque ya se ha manejado el mensaje
     }
 
@@ -531,7 +375,7 @@ async function onMessageHandler(channel, tags, message, self) {
     if (animeGame.checkAnswer(messageLower)) { const winner = username; const animeName = animeGame.currentItem.name; animeScoreTracker.addScore(winner, channel); client.say(channel, `🎉 ¡Correcto! @${winner} ha adivinado  "${animeName}"! Preparando el siguiente...`); animeGame.stopGame(channel, false); setTimeout(() => animeGame.startGame(channel), 3000); return; }
     if (pokemonGame.checkAnswer(messageLower)) { const winner = username; const pokemonName = pokemonGame.currentItem.name; pokemonScoreTracker.addScore(winner, channel); client.say(channel, `🎉 ¡Atrápalo ya! @${winner} ha adivinado que era "${pokemonName}"! Preparando el siguiente...`); pokemonGame.stopGame(channel, false); setTimeout(() => pokemonGame.startGame(channel), 3000); return; }
     if (hoyoverseGame.checkAnswer(messageLower)) { const winner = username; const hoyoName = hoyoverseGame.currentItem.name; hoyoverseScoreTracker.addScore(winner, channel); client.say(channel, `✨ ¡Correcto! @${winner} ha adivinado que era "${hoyoName}"! Preparando el siguiente...`); hoyoverseGame.stopGame(channel, false); setTimeout(() => hoyoverseGame.startGame(channel), 3000); return; }
-
+    
     if (activeReto.isActive && username.toLowerCase() === activeReto.challenged && (messageLower === 'si' || messageLower === 'acepto' || messageLower === 'sí')) { /*...*/ }
     if (message.trim() === 'M' && isAuthorized(username)) { const newDeathCount = deathCounter.addDeaths(1); client.say(channel, `!cmd edit muertes Muertes en ${deathCounter.data.game}: ${newDeathCount}`); return }
 
@@ -565,7 +409,7 @@ async function onMessageHandler(channel, tags, message, self) {
             break;
         }
 
-        case 'permit': {
+                case 'permit': {
             if (!isMod) return;
 
             const targetUsername = args[0]?.replace('@', '').toLowerCase();
@@ -581,24 +425,24 @@ async function onMessageHandler(channel, tags, message, self) {
             client.say(channel, `✅ @${targetUsername} tiene permiso para enviar un link durante los próximos 60 segundos.`);
             break;
         }
-        // ... dentro del switch ...
-        // == COMANDO PARA INICIAR EL DUELO 1vs1 ==
-        case 'duelo':
+// ... dentro del switch ...
+// == COMANDO PARA INICIAR EL DUELO 1vs1 ==
+        case 'duelo': 
         case 'desenfundar': {
             // Verificamos si ya hay un duelo de este tipo activo
             if (westernDuel.step > 0) {
                 client.say(channel, `Ya hay un duelo en curso entre @${westernDuel.challenger} y @${westernDuel.target}. Esperad vuestro turno.`);
                 return;
             }
-
+            
             // Obtenemos el objetivo
             const targetUser = args[0]?.replace('@', '').toLowerCase();
-
+            
             if (!targetUser) {
                 client.say(channel, "Uso: !duelo @usuario (para retar a reflejos)");
                 return;
             }
-
+            
             if (targetUser === username.toLowerCase()) {
                 client.say(channel, "No puedes tener un duelo contigo mismo, vaquero.");
                 return;
@@ -613,7 +457,7 @@ async function onMessageHandler(channel, tags, message, self) {
             };
 
             client.say(channel, `🌵 @${username} desafía a @${targetUser} a un duelo de reflejos. @${targetUser}, escribe "si" o "acepto" para desenfundar.`);
-
+            
             // Si no acepta en 30 segundos, se cancela
             setTimeout(() => {
                 if (westernDuel.step === 1 && westernDuel.target === targetUser) {
@@ -621,14 +465,14 @@ async function onMessageHandler(channel, tags, message, self) {
                     westernDuel = { step: 0, challenger: null, target: null, timer: null };
                 }
             }, 30000);
-
+            
             break;
         }
 
-        // =================================================================
+                // =================================================================
         // ==           AÑADE EL COMANDO REPETIDOR DE NUKE AQUÍ           ==
         // =================================================================
-
+        
         case 'nuke': {
             if (!isMod) return; // Seguridad: Solo mods pueden usarlo
 
@@ -652,9 +496,9 @@ async function onMessageHandler(channel, tags, message, self) {
 
             // SI hay texto después del comando (función de MODERADOR)
             if (newTitle) {
-                if (!isMod && !PERMA_WHITELIST_USERS.includes(username.toLowerCase())) return; // Permitir a la whitelist cambiar título
+                if (!isMod) return; // Si no es mod, no hace nada
                 client.say(channel, `!settitle ${newTitle}`);
-            }
+            } 
             // SI NO hay texto (función para TODOS)
             else {
                 try {
@@ -698,7 +542,7 @@ async function onMessageHandler(channel, tags, message, self) {
             }
             break;
         }
-
+        
 
         case 'hoy': {
             try {
@@ -716,7 +560,7 @@ async function onMessageHandler(channel, tags, message, self) {
             break;
         }
         case 'settitulo': {
-            if (!isMod && !PERMA_WHITELIST_USERS.includes(username.toLowerCase())) return;
+            if (!isMod) return;
             const newTitle = args.join(' ');
             if (!newTitle) {
                 client.say(channel, "Uso: !settitulo <nuevo título del directo>");
@@ -724,15 +568,13 @@ async function onMessageHandler(channel, tags, message, self) {
             }
 
             try {
-                await axios.patch(`https://api.twitch.tv/helix/channels?broadcaster_id=${CHANNEL_ID}`,
+                await axios.patch(`https://api.twitch.tv/helix/channels?broadcaster_id=${CHANNEL_ID}`, 
                     { title: newTitle },
-                    {
-                        headers: {
-                            'Client-ID': config.TWITCH_CLIENT_ID,
-                            'Authorization': `Bearer ${config.TWITCH_ACCESS_TOKEN}`,
-                            'Content-Type': 'application/json'
-                        }
-                    }
+                    { headers: { 
+                        'Client-ID': config.TWITCH_CLIENT_ID, 
+                        'Authorization': `Bearer ${config.TWITCH_ACCESS_TOKEN}`,
+                        'Content-Type': 'application/json'
+                    }}
                 );
                 client.say(channel, `✅ ¡Título actualizado! Nuevo título: ${newTitle}`);
             } catch (error) {
@@ -742,10 +584,10 @@ async function onMessageHandler(channel, tags, message, self) {
             break;
         }
 
-        // =================================================================
+                // =================================================================
         // ==      AÑADE ESTOS DOS NUEVOS COMANDOS DE EDICIÓN AQUÍ        ==
         // =================================================================
-
+        
         case 'comando': {
             if (!isMod) return;
 
@@ -781,7 +623,7 @@ async function onMessageHandler(channel, tags, message, self) {
 
             // Enviamos el comando de edición final con todo el contenido acumulado
             client.say(channel, `!cmd edit ${commandEditorState.commandName} ${commandEditorState.currentContent}`);
-
+            
             // Avisamos y reseteamos el estado
             client.say(channel, `✅ ¡Comando ${commandEditorState.commandName} guardado!`);
             commandEditorState = { isActive: false, commandName: null, currentContent: null, editorUsername: null };
@@ -801,11 +643,11 @@ async function onMessageHandler(channel, tags, message, self) {
             }
             break;
         }
-
-        // =================================================================
+        
+                // =================================================================
         // ==                 AÑADE EL COMANDO !piramide AQUÍ             ==
         // =================================================================
-
+        
         case 'piramide': {
             if (!isMod) return; // ¡Solo para mods!
 
@@ -817,7 +659,7 @@ async function onMessageHandler(channel, tags, message, self) {
                 size = parseInt(args[0], 10);
                 emote = args[1];
             }
-
+            
             if (!emote) {
                 client.say(channel, "Uso: !piramide [tamaño] <emote>");
                 return;
@@ -836,37 +678,9 @@ async function onMessageHandler(channel, tags, message, self) {
         // =================================================================
 
         // =================================================================
-        // ==                 COMANDOS DE KARAOKE                         ==
-        // =================================================================
-        case 'cantar': {
-            if (!isMod) return;
-            const songName = args.join(' ');
-            if (!songName) {
-                client.say(channel, "Uso: !cantar <nombre_archivo_lrc>");
-                return;
-            }
-
-            const success = karaoke.play(channel, songName);
-            if (!success) {
-                client.say(channel, `❌ No encontré el archivo de letra: lyrics/${songName}.lrc`);
-            }
-            break;
-        }
-
-        case 'stopcantar': {
-            if (!isMod) return;
-            if (karaoke.stop()) {
-                client.say(channel, "🛑 Karaoke detenido.");
-            } else {
-                client.say(channel, "De por sí no estaba cantando nada.");
-            }
-            break;
-        }
-
-        // =================================================================
         // ==                   FIN DE LOS NUEVOS COMANDOS                ==
         // =================================================================
-
+        
         // == Comandos de Duelo y Muertes ==
         case 'reto': {
             if (activeReto.isActive && (Date.now() - activeReto.timestamp) / 1000 < RETO_EXPIRATION_SECONDS) { client.say(channel, `Ya hay un reto activo.`); return }
@@ -900,7 +714,7 @@ async function onMessageHandler(channel, tags, message, self) {
             } else { client.say(channel, `❌ Número inválido.`); }
             break;
         }
-
+        
         // == Comandos de Juegos ==
         case 'adivina': if (isMod) animeGame.isActive ? client.say(channel, 'El juego ya está en marcha.') : animeGame.startGame(channel); break;
         case 'parar': if (isMod) animeGame.stopGame(channel); break;
@@ -914,18 +728,7 @@ async function onMessageHandler(channel, tags, message, self) {
 
         // == Comandos de Playlist ==
         case 'añadir': handleSongRequest(channel, tags, message, 0); break;
-        case 'cupon':
-            if (isAuthorized(username)) {
-                const a = parseInt(args[0], 10);
-                if (!isNaN(a) && a > 0) {
-                    couponCount += a;
-                    client.say(channel, `🎟️ ¡CUPONES AGREGADOS! Se han sumado ${a}. Ahora hay ${couponCount} cupones disponibles por ${COUPON_BIT_PRICE} piedritas cada uno.`);
-                } else if (args[0] === '0') {
-                    couponCount = 0;
-                    client.say(channel, `🎟️ Cupones reseteados a 0.`);
-                }
-            }
-            break;
+        case 'cupon': if (isAuthorized(username)) { const a = parseInt(args[0], 10); if (!isNaN(a) && a > 0) { couponCount = a; client.say(channel, `🎟️ ¡CUPÓN ACTIVADO! Las próximas ${couponCount} canciones por ${COUPON_BIT_PRICE} piedritas serán aceptadas.`); } } break;
         case 'playlist': if (config.PLAYLIST_ID) client.say(channel, `Playlist: https://www.youtube.com/playlist?list=${config.PLAYLIST_ID}`); break;
         case 'comandos': client.say(channel, `Stream: !hoy, !settitulo | Juegos: !adivina, !pokemon, !hoyoverse | Tops: !tops, !topspkm, !topshoyo | Música: !playlist | Otros: !reto, !muertes.`); break;
     }
@@ -937,14 +740,14 @@ async function onMessageHandler(channel, tags, message, self) {
 
 async function startBot() {
     // 1. Autenticar con YouTube (si está configurado)
-    if (config.GOOGLE_CLIENT_ID) {
-        if (await getAccessToken()) {
-            console.log("[v] Módulo de Playlist de YouTube cargado.");
-        } else {
-            console.warn("⚠️  Advertencia: Playlist de YouTube no funcionará.");
+    if (config.GOOGLE_CLIENT_ID) { 
+        if (await getAccessToken()) { 
+            console.log("[v] Módulo de Playlist de YouTube cargado."); 
+        } else { 
+            console.warn("⚠️  Advertencia: Playlist de YouTube no funcionará."); 
         }
-    } else {
-        console.log("[ ] Módulo de Playlist de YouTube desactivado.");
+    } else { 
+        console.log("[ ] Módulo de Playlist de YouTube desactivado."); 
     }
 
     // 2. Conectar al chat de Twitch
@@ -971,7 +774,7 @@ async function startBot() {
         console.error("   (Detalle del error de la API:", error.response?.data?.message || error.message, ")");
         process.exit(1);
     }
-
+    
     // 4. AHORA que tenemos todo, mostramos el mensaje de bienvenida completo
     console.log(`* Corriendo como '${config.BOT_USERNAME}' (ID: ${BOT_USER_ID})`);
     console.log(`* Escuchando en el canal '${config.CHANNEL_NAME}' (ID: ${CHANNEL_ID})`);
@@ -989,18 +792,6 @@ async function startBot() {
 client.on('message', onMessageHandler);
 process.on('SIGINT', () => { console.log('\n🛑 Cerrando bot...'); client.disconnect(); process.exit(0); });
 process.on('SIGTERM', () => { console.log('\n🛑 Cerrando bot...'); client.disconnect(); process.exit(0); });
-
-// --- SERVIDOR KEEP-ALIVE (EXPRESS) ---
-const app = express();
-const PORT = process.env.PORT || 3000;
-
-app.get('/', (req, res) => {
-    res.send('🤖 Bot está en línea y funcionando. (Keep-alive activo)');
-});
-
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`[v] Servidor de salud activo en puerto ${PORT}`);
-});
 
 // ¡Iniciamos el bot!
 startBot();
