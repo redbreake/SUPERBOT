@@ -1,15 +1,26 @@
-# Archivos de configuración local
+# Archivos de tokens y sesiones (SECRETOS)
+youtube_token.json
 .env
 
-# Archivos de tokens y sesiones
-youtube_token.json
-
-# Dependencias de Node
+# Entornos y dependencias
 node_modules/
+venv/
+.venv/
+__pycache__/
 
-# Archivos de puntuaciones y datos
-*.json
+# Archivos de puntuaciones (Opcional: puedes quitarlos si quieres que se guarden en Git)
+*_scores.json
+halo3_deaths.json
+silksong_deaths.json
 
-# Archivos del sistema operativo
+# Permitir archivos necesarios
+!package.json
+!package-lock.json
+!anime_list.json
+!pokemon.json
+!hoyoverse.json
+!quotes.json
+
+# Archivos del sistema
 .DS_Store
 npm-debug.log*

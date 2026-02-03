@@ -1,0 +1,25 @@
+{
+  "name": "twitch-youtube-playlist-bot",
+  "version": "1.0.0",
+  "description": "Bot de Twitch que agrega videos de YouTube a una playlist cuando recibe bits",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js"
+  },
+  "dependencies": {
+    "axios": "^1.10.0",
+    "dotenv": "^16.3.1",
+    "express": "^5.1.0",
+    "googleapis": "^128.0.0",
+    "tmi.js": "^1.8.5"
+  },
+  "keywords": [
+    "twitch",
+    "bot",
+    "youtube",
+    "playlist",
+    "bits"
+  ],
+  "author": "Kalaa",
+  "license": "MIT"
+}
