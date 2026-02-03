@@ -1014,7 +1014,7 @@ async function startBot() {
     console.log(`[v] Juego de Pokémon (${pokemonGame.list.length} cargados)`);
     console.log(`[v] Juego de Hoyoverse (${hoyoverseGame.list.length} cargados)`);
     console.log(`------------------------`);
-    client.say(config.CHANNEL_NAME, "Bot multifunción V2.7.1 listo para la acción.");
+    // client.say(config.CHANNEL_NAME, "Bot multifunción V2.7.1 listo para la acción.");
 }
 
 // Vinculamos los manejadores
