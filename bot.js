@@ -680,7 +680,7 @@ async function onMessageHandler(channel, tags, message, self) {
 
             // SI hay texto después del comando (función de MODERADOR)
             if (newTitle) {
-                if (!isMod && !PERMA_WHITELIST_USERS.includes(username.toLowerCase())) return; // Permitir a la whitelist cambiar título
+                if (!isMod) return; // Permitir a la whitelist cambiar título
                 client.say(channel, `!settitle ${newTitle}`);
             }
             // SI NO hay texto (función para TODOS)
