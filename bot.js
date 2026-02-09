@@ -998,10 +998,9 @@ async function startBot() {
         CHANNEL_ID = channelUserResponse.data.data[0].id;
 
     } catch (error) {
-        console.error("❌ Error fatal: No se pudo obtener el ID del bot o del canal.");
-        console.error("👉 CAUSA PROBABLE: Tu TWITCH_ACCESS_TOKEN en el .env es inválido o tiene el prefijo 'oauth:'.");
-        console.error("   (Detalle del error de la API:", error.response?.data?.message || error.message, ")");
-        process.exit(1);
+        console.error("❌ Error inicializando Twitch:", error.response?.data?.message || error.message);
+        console.warn("👉 El bot seguirá intentando reconectar, pero algunas funciones pueden fallar hasta que el token sea válido.");
+        // Ya no hacemos process.exit(1), permitimos que el servidor Express siga vivo.
     }
 
     // 4. AHORA que tenemos todo, mostramos el mensaje de bienvenida completo
@@ -1028,6 +1027,17 @@ const PORT = process.env.PORT || 3000;
 
 app.get('/', (req, res) => {
     res.send('🤖 Bot está en línea y funcionando. (Keep-alive activo)');
+});
+
+app.get('/status', (req, res) => {
+    const status = {
+        twitch: client.readyState() === 'OPEN' ? 'Connected' : 'Disconnected',
+        youtube: oauth2Client.credentials ? 'Authenticated' : 'Not Authenticated',
+        uptime: process.uptime(),
+        bot_user: BOT_USER_ID || 'Pending',
+        channel: CHANNEL_ID || 'Pending'
+    };
+    res.json(status);
 });
 
 app.listen(PORT, '0.0.0.0', () => {
