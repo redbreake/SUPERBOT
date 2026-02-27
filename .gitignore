@@ -10,8 +10,7 @@ __pycache__/
 
 # Archivos de puntuaciones (Opcional: puedes quitarlos si quieres que se guarden en Git)
 *_scores.json
-halo3_deaths.json
-silksong_deaths.json
+*_deaths.json
 
 # Permitir archivos necesarios
 !package.json
