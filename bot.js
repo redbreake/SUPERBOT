@@ -637,7 +637,7 @@ async function onMessageHandler(channel, tags, message, self) {
                     contents: [
                         { 
                             role: 'user', 
-                            parts: [{ text: `Eres un asistente en un chat de Twitch. Responde SIEMPRE de forma EXTREMADAMENTE CONCISA y amigable. Máximo 1 o 2 oraciones, directo al punto. Pregunta: ${question}` }] 
+                            parts: [{ text: `Actúa como un bot de chat. Responde de forma DIRECTA Y EXACTA a la pregunta. PROHIBIDO decir "Hola" o saludar. PROHIBIDO dar datos extra o segundas oraciones. Solo el dato o la respuesta pura. Pregunta: ${question}` }] 
                         }
                     ],
                     config: {
