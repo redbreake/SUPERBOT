@@ -12,7 +12,18 @@ const readline = require('readline');
 const axios = require('axios');
 const path = require('path');
 const express = require('express');
+const { GoogleGenAI } = require('@google/genai');
 
+// Inicializar Gemini
+let aiClient = null;
+if (process.env.GEMINI_API_KEY) {
+    try {
+        aiClient = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+        console.log("✅ SDK de Gemini (@google/genai) inicializado.");
+    } catch (e) {
+        console.error("❌ Falló la inicialización de Gemini:", e);
+    }
+}
 
 
 // --- CONFIGURACIÓN Y ESTADO GLOBAL ---
@@ -609,8 +620,47 @@ async function onMessageHandler(channel, tags, message, self) {
             client.say(channel, `✅ @${targetUsername} tiene permiso para enviar un link durante los próximos 60 segundos.`);
             break;
         }
-        // ... dentro del switch ...
+        case 'duda': {
+            const question = args.join(' ').trim();
+            if (!question) {
+                client.say(channel, "Uso: !duda <tu pregunta>");
+                return;
+            }
+            if (!aiClient) {
+                client.say(channel, "❌ Gemini no está disponible (falta GEMINI_API_KEY).");
+                return;
+            }
+
+            try {
+                const response = await aiClient.models.generateContent({
+                    model: 'gemini-3-flash-preview',
+                    contents: [
+                        { 
+                            role: 'user', 
+                            parts: [{ text: `Eres un asistente en un chat de Twitch. Responde SIEMPRE de forma EXTREMADAMENTE CONCISA y amigable. Máximo 1 o 2 oraciones, directo al punto. Pregunta: ${question}` }] 
+                        }
+                    ],
+                    config: {
+                        // Nivel de pensamiento solicitado
+                        thinkingConfig: { thinkingLevel: 'HIGH' }
+                    }
+                });
+
+                if (response.text) {
+                    // Limitar a los 500 caracteres maximos de Twitch por si acaso
+                    let cleanText = response.text.replace(/\n/g, ' ').substring(0, 480);
+                    client.say(channel, `🤖 @${username}: ${cleanText}`);
+                }
+            } catch (e) {
+                console.error("❌ Error en comando !duda:", e.message);
+                client.say(channel, `🤖 @${username}: Ups, parece que mi cerebro (Gemini) se sobrecalentó. Inténtalo luego.`);
+            }
+            break;
+        }
+
+        // =================================================================
         // == COMANDO PARA INICIAR EL DUELO 1vs1 ==
+
         case 'duelo':
         case 'desenfundar': {
             // Verificamos si ya hay un duelo de este tipo activo
