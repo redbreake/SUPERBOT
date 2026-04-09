@@ -58,6 +58,7 @@ let commandEditorState = {
     currentContent: null,
     editorUsername: null
 };
+let autoModActive = true; 
 // Estado para el Duelo del Oeste (1vs1 de reflejos)
 let westernDuel = {
     step: 0, // 0: Inactivo, 1: Esperando Aceptar, 2: Tensión (Pre-Bang), 3: Disparo (Bang)
@@ -494,7 +495,7 @@ async function onMessageHandler(channel, tags, message, self) {
     // EXCEPCIÓN PERMANENTE: Si el usuario está en la whitelist, ignoramos toda la auto-moderación.
     if (PERMA_WHITELIST_USERS.includes(username.toLowerCase())) {
         // No hacemos nada, el mensaje pasa limpio.
-    } else {
+    } else if (autoModActive) {
         // MÓDULO 1: Detección de Arte ASCII
         if (isAsciiArt(message)) {
             await deleteChatMessage(channel, tags.id);
@@ -618,6 +619,20 @@ async function onMessageHandler(channel, tags, message, self) {
             linkPermits[targetUsername] = expirationTime;
 
             client.say(channel, `✅ @${targetUsername} tiene permiso para enviar un link durante los próximos 60 segundos.`);
+            break;
+        }
+
+        case 'pararmod': {
+            if (!isMod) return;
+            autoModActive = false;
+            client.say(channel, "⚠️ La auto-moderación (ASCII y Links) ha sido DESACTIVADA.");
+            break;
+        }
+
+        case 'activarmod': {
+            if (!isMod) return;
+            autoModActive = true;
+            client.say(channel, "✅ La auto-moderación (ASCII y Links) ha sido ACTIVADA.");
             break;
         }
         case 'duda': {
