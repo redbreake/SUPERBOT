@@ -307,7 +307,7 @@ async function handleSongRequest(channel, tags, message, bitsAmount = 0) {
         console.log(`[SONG REQUEST] Redención de cupón detectada.`);
     } else if (Number(bitsAmount) >= Number(config.MIN_BITS_SONG)) {
         canAddSong = true;
-    } else if (bitsAmount === 0 && isAuthorized(username) && message.toLowerCase().startsWith('!añadir')) {
+    } else if (bitsAmount === 0 && (isAuthorized(username) || tags.mod || tags.badges?.broadcaster === '1') && message.toLowerCase().startsWith('!añadir')) {
         canAddSong = true;
     }
 
