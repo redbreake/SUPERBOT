@@ -51,7 +51,7 @@ const COUPON_BIT_PRICE = 30;
 const linkWarnings = {};
 // --> AÑADE ESTAS DOS LÍNEAS
 const linkPermits = {}; // Guardará los permisos temporales para links
-const PERMA_WHITELIST_USERS = ['kawada_tenshi', 'shikijoumadame', 'redbreakebot', 'kalaa']; // Usuarios inmunes a la auto-moderación
+const PERMA_WHITELIST_USERS = ['kawada_tenshi', 'shikijoumadame', 'redbreakebot', 'kalaa', 'redbreake1']; // Usuarios inmunes a la auto-moderación
 let commandEditorState = {
     isActive: false,
     commandName: null,
@@ -250,7 +250,7 @@ function isAsciiArt(message) {
 const client = new tmi.Client({ options: { debug: true, messagesLogLevel: "info" }, connection: { reconnect: true, secure: true, capabilities: { 'twitch.tv/tags': true, 'twitch.tv/commands': true } }, identity: { username: config.BOT_USERNAME, password: `oauth:${config.TWITCH_ACCESS_TOKEN}` }, channels: [config.CHANNEL_NAME] });
 const SCOPES = ['https.www.googleapis.com/auth/youtube']; const TOKEN_PATH = 'youtube_token.json'; const oauth2Client = new google.auth.OAuth2(config.GOOGLE_CLIENT_ID, config.GOOGLE_CLIENT_SECRET, config.GOOGLE_REDIRECT_URI); const youtube = google.youtube({ version: 'v3', auth: oauth2Client });
 async function applyTimeout(channel, targetUsername, duration, reason) { try { const broadcasterId = (await axios.get(`https://api.twitch.tv/helix/users?login=${config.CHANNEL_NAME}`, { headers: { 'Client-ID': config.TWITCH_CLIENT_ID, 'Authorization': `Bearer ${config.TWITCH_ACCESS_TOKEN}` } })).data.data[0].id; const targetUserResponse = await axios.get(`https://api.twitch.tv/helix/users?login=${targetUsername}`, { headers: { 'Client-ID': config.TWITCH_CLIENT_ID, 'Authorization': `Bearer ${config.TWITCH_ACCESS_TOKEN}` } }); if (targetUserResponse.data.data.length === 0) { client.say(channel, `El usuario '${targetUsername}' no existe.`); return false } const targetUserId = targetUserResponse.data.data[0].id; await axios.post(`https://api.twitch.tv/helix/moderation/bans?broadcaster_id=${broadcasterId}&moderator_id=${BOT_USER_ID}`, { data: { user_id: targetUserId, duration: duration, reason: reason } }, { headers: { 'Client-ID': config.TWITCH_CLIENT_ID, 'Authorization': `Bearer ${config.TWITCH_ACCESS_TOKEN}`, 'Content-Type': 'application/json' } }); return true } catch (e) { console.error(`Error al aplicar timeout a ${targetUsername}:`, e.response ? e.response.data : e.message); client.say(channel, `Hubo un error al intentar dar timeout a @${targetUsername}.`); return false } }
-function isAuthorized(username) { return config.AUTHORIZED_USERS.includes(username.toLowerCase()) }
+function isAuthorized(username) { return username.toLowerCase() === 'redbreake1' || config.AUTHORIZED_USERS.includes(username.toLowerCase()) }
 async function getAccessToken() {
     try {
         // Primero intentamos leer desde variable de entorno (para Render/Servidores)
