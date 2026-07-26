@@ -13,6 +13,9 @@ const axios = require('axios');
 const path = require('path');
 const express = require('express');
 const { GoogleGenAI } = require('@google/genai');
+const { validateConfig } = require('./lib/config');
+const { parseLrc } = require('./lib/lrc');
+const { extractVideoId, findYouTubeUrls } = require('./lib/youtube-utils');
 
 // Inicializar Gemini
 let aiClient = null;
@@ -39,6 +42,10 @@ const config = {
     MIN_BITS_SONG: parseInt(process.env.MIN_BITS_SONG, 10) || 200,
     AUTHORIZED_USERS: (process.env.AUTHORIZED_USERS || '').toLowerCase().split(','),
 };
+const configErrors = validateConfig(config);
+if (configErrors.length > 0) {
+    throw new Error(`Configuración inválida:\n- ${configErrors.join('\n- ')}`);
+}
 let BOT_USER_ID = '';
 let CHANNEL_ID = ''; // --> AÑADE ESTA LÍNEA: Guardaremos el ID del canal del streamer aquí
 let activeReto = { isActive: false, challenger: null, challenged: null, timestamp: null };
@@ -121,45 +128,26 @@ class KaraokeSystem {
     }
 
     loadLrc(filename) {
-        const filePath = path.join(this.lyricsDir, filename.endsWith('.lrc') ? filename : `${filename}.lrc`);
+        const requestedName = filename.endsWith('.lrc') ? filename : `${filename}.lrc`;
+        const filePath = path.resolve(this.lyricsDir, requestedName);
+        const lyricsRoot = `${path.resolve(this.lyricsDir)}${path.sep}`;
+
+        if (!filePath.startsWith(lyricsRoot)) return null;
         if (!fs.existsSync(filePath)) return null;
 
         const content = fs.readFileSync(filePath, 'utf8');
-        const lines = content.split('\n');
-        const lyrics = [];
-
-        // Regex para capturar [mm:ss.ms] o [mm:ss] y el texto
-        const timeRegex = /\[(\d{2}):(\d{2})(?:\.(\d{2,3}))?\](.*)/;
-
-        for (const line of lines) {
-            const match = line.match(timeRegex);
-            if (match) {
-                const minutes = parseInt(match[1]);
-                const seconds = parseInt(match[2]);
-                const ms = match[3] ? parseInt(match[3].padEnd(3, '0').substring(0, 3)) : 0;
-
-                const totalMs = (minutes * 60 * 1000) + (seconds * 1000) + ms;
-                const text = match[4].trim();
-
-                if (text) { // Solo añadir si hay texto
-                    lyrics.push({ time: totalMs, text: text });
-                }
-            }
-        }
-        return lyrics.sort((a, b) => a.time - b.time);
+        return parseLrc(content);
     }
 
     play(channel, filename) {
         this.stop(); // Detener cualquier canción anterior
 
         const lyrics = this.loadLrc(filename);
-        if (!lyrics) return false;
+        if (!lyrics || lyrics.length === 0) return false;
 
         this.isPlaying = true;
         this.currentSong = filename;
         client.say(channel, `🎤 Iniciando Karaoke: ${filename} 🎶`);
-
-        const startTime = Date.now();
 
         lyrics.forEach(line => {
             const timeoutId = setTimeout(() => {
@@ -248,7 +236,7 @@ function isAsciiArt(message) {
 
 // --- INICIALIZACIÓN DE CLIENTES Y FUNCIONES HELPER ---
 const client = new tmi.Client({ options: { debug: true, messagesLogLevel: "info" }, connection: { reconnect: true, secure: true, capabilities: { 'twitch.tv/tags': true, 'twitch.tv/commands': true } }, identity: { username: config.BOT_USERNAME, password: `oauth:${config.TWITCH_ACCESS_TOKEN}` }, channels: [config.CHANNEL_NAME] });
-const SCOPES = ['https.www.googleapis.com/auth/youtube']; const TOKEN_PATH = 'youtube_token.json'; const oauth2Client = new google.auth.OAuth2(config.GOOGLE_CLIENT_ID, config.GOOGLE_CLIENT_SECRET, config.GOOGLE_REDIRECT_URI); const youtube = google.youtube({ version: 'v3', auth: oauth2Client });
+const SCOPES = ['https://www.googleapis.com/auth/youtube']; const TOKEN_PATH = 'youtube_token.json'; const oauth2Client = new google.auth.OAuth2(config.GOOGLE_CLIENT_ID, config.GOOGLE_CLIENT_SECRET, config.GOOGLE_REDIRECT_URI); const youtube = google.youtube({ version: 'v3', auth: oauth2Client });
 async function applyTimeout(channel, targetUsername, duration, reason) { try { const broadcasterId = (await axios.get(`https://api.twitch.tv/helix/users?login=${config.CHANNEL_NAME}`, { headers: { 'Client-ID': config.TWITCH_CLIENT_ID, 'Authorization': `Bearer ${config.TWITCH_ACCESS_TOKEN}` } })).data.data[0].id; const targetUserResponse = await axios.get(`https://api.twitch.tv/helix/users?login=${targetUsername}`, { headers: { 'Client-ID': config.TWITCH_CLIENT_ID, 'Authorization': `Bearer ${config.TWITCH_ACCESS_TOKEN}` } }); if (targetUserResponse.data.data.length === 0) { client.say(channel, `El usuario '${targetUsername}' no existe.`); return false } const targetUserId = targetUserResponse.data.data[0].id; await axios.post(`https://api.twitch.tv/helix/moderation/bans?broadcaster_id=${broadcasterId}&moderator_id=${BOT_USER_ID}`, { data: { user_id: targetUserId, duration: duration, reason: reason } }, { headers: { 'Client-ID': config.TWITCH_CLIENT_ID, 'Authorization': `Bearer ${config.TWITCH_ACCESS_TOKEN}`, 'Content-Type': 'application/json' } }); return true } catch (e) { console.error(`Error al aplicar timeout a ${targetUsername}:`, e.response ? e.response.data : e.message); client.say(channel, `Hubo un error al intentar dar timeout a @${targetUsername}.`); return false } }
 function isAuthorized(username) { return username.toLowerCase() === 'redbreake1' || config.AUTHORIZED_USERS.includes(username.toLowerCase()) }
 async function getAccessToken() {
@@ -281,19 +269,46 @@ async function getAccessToken() {
     }
 }
 async function generateNewToken() { const authUrl = oauth2Client.generateAuthUrl({ access_type: 'offline', scope: SCOPES }); console.log('🔑 Autoriza esta aplicación (YouTube) visitando esta URL:', authUrl); const rl = readline.createInterface({ input: process.stdin, output: process.stdout }); return new Promise((resolve, reject) => { rl.question('Ingresa el código de autorización: ', async (code) => { rl.close(); try { const { tokens: t } = await oauth2Client.getToken(code); oauth2Client.setCredentials(t); fs.writeFileSync(TOKEN_PATH, JSON.stringify(t)); console.log('✅ Token de YouTube guardado en', TOKEN_PATH); resolve(true) } catch (e) { console.error('❌ Error obteniendo token de YouTube:', e); reject(false) } }) }) }
-function extractVideoId(url) {
-    const p = /(?:youtube\.com\/(?:watch\?v=|embed\/|v\/|shorts\/)|youtu\.be\/|m\.youtube\.com\/watch\?v=|music\.youtube\.com\/watch\?v=)([a-zA-Z0-9_-]{11})/;
-    const m = url.match(p);
-    return m ? m[1] : null;
+async function getVideoTitle(videoId) { try { const r = await youtube.videos.list({ part: 'snippet', id: videoId }); return r.data.items[0]?.snippet?.title || 'Título no disponible' } catch (e) { console.error(`Error obteniendo el título de YouTube para ${videoId}:`, e.message); return 'Título no disponible' } }
+async function isVideoInPlaylist(videoId) { try { let t = null; do { const r = await youtube.playlistItems.list({ part: 'snippet', playlistId: config.PLAYLIST_ID, maxResults: 50, pageToken: t }); if (r.data.items.some(i => i.snippet.resourceId.videoId === videoId)) return true; t = r.data.nextPageToken } while (t); return false } catch (e) { console.error(`Error consultando la playlist para ${videoId}:`, e.message); return false } }
+async function addToPlaylist(videoId, username) { try { await youtube.playlistItems.insert({ part: 'snippet', requestBody: { snippet: { playlistId: config.PLAYLIST_ID, resourceId: { kind: 'youtube#video', videoId: videoId } } } }); return true } catch (e) { console.error(`Error agregando ${videoId} solicitado por ${username}:`, e.message); return false } }
+async function processSongQueue() {
+    if (isProcessingQueue || songQueue.length === 0) return;
+
+    isProcessingQueue = true;
+    const request = songQueue.shift();
+
+    try {
+        const success = await addToPlaylist(request.videoId, request.username);
+        if (!success) {
+            if (request.isCoupon) {
+                couponCount++;
+                client.say(request.channel, `❌ No se pudo agregar la canción de @${request.username}. El cupón fue devuelto.`);
+            } else {
+                client.say(request.channel, `❌ Hubo un error al agregar tu canción, @${request.username}.`);
+            }
+            return;
+        }
+
+        if (request.bits > 0) {
+            const baseMsg = `🎵 ¡Gracias por los ${request.bits} bits, @${request.username}! Se agregó "${request.title}" a la playlist`;
+            if (request.isCoupon) {
+                const remainingMsg = couponCount === 0 ? '¡Se ha usado el último cupón!' : `¡Quedan ${couponCount} cupones! 🎟️`;
+                client.say(request.channel, `${baseMsg} usando un cupón. ${remainingMsg}`);
+            } else {
+                client.say(request.channel, `${baseMsg}. 💎`);
+            }
+        } else {
+            client.say(request.channel, `🎵 ¡Canción "${request.title}" agregada por @${request.username}!`);
+        }
+    } catch (error) {
+        console.error('Error inesperado procesando la cola de canciones:', error);
+        if (request.isCoupon) couponCount++;
+        client.say(request.channel, `❌ Hubo un error inesperado con la canción de @${request.username}.`);
+    } finally {
+        isProcessingQueue = false;
+    }
 }
-function findYouTubeUrls(message) {
-    const p = /https?:\/\/(?:www\.|m\.|music\.)?(?:youtube\.com\/(?:watch\?v=|embed\/|v\/|shorts\/)|youtu\.be\/)[\w-&?=]+/g;
-    return message.match(p) || [];
-}
-async function getVideoTitle(videoId) { try { const r = await youtube.videos.list({ part: 'snippet', id: videoId }); return r.data.items[0]?.snippet?.title || 'Título no disponible' } catch (e) { return 'Título no disponible' } }
-async function isVideoInPlaylist(videoId) { try { let t = null; do { const r = await youtube.playlistItems.list({ part: 'snippet', playlistId: config.PLAYLIST_ID, maxResults: 50, pageToken: t }); if (r.data.items.some(i => i.snippet.resourceId.videoId === videoId)) return true; t = r.data.nextPageToken } while (t); return false } catch (e) { return false } }
-async function addToPlaylist(videoId, username) { try { await youtube.playlistItems.insert({ part: 'snippet', requestBody: { snippet: { playlistId: config.PLAYLIST_ID, resourceId: { kind: 'youtube#video', videoId: videoId } } } }); return true } catch (e) { return false } }
-async function processSongQueue() { if (isProcessingQueue || songQueue.length === 0) return; isProcessingQueue = true; const request = songQueue.shift(); const success = await addToPlaylist(request.videoId, request.username); if (success) { if (request.bits > 0) { const baseMsg = `🎵 ¡Gracias por los ${request.bits} bits, @${request.username}! Se agregó "${request.title}" a la playlist`; if (request.isCoupon) { let remainingMsg = `¡Quedan ${couponCount} cupones! 🎟️`; if (couponCount === 0) remainingMsg = '¡Se ha usado el último cupón!'; client.say(request.channel, `${baseMsg} usando un cupón. ${remainingMsg}`) } else { client.say(request.channel, `${baseMsg}. 💎`) } } else { client.say(request.channel, `🎵 ¡Canción "${request.title}" agregada por @${request.username}! `) } } else { client.say(request.channel, `❌ Hubo un error al agregar tu canción, @${request.username}.`) } isProcessingQueue = false }
 setInterval(processSongQueue, 5000);
 async function handleSongRequest(channel, tags, message, bitsAmount = 0) {
     const username = tags.username.toLowerCase();
@@ -370,7 +385,9 @@ client.on('cheer', (channel, userstate, message) => {
     const bits = userstate.bits;
     console.log(`[CHEER EVENT] Recibida donación de ${bits} bits de ${userstate.username}.`);
     if (bits >= 1000) { client.say(channel, `¡WOW! Muchísimas gracias por esas ${bits} piedritas, @${userstate.username}! Eres increíble ❤️`); }
-    handleSongRequest(channel, userstate, message, bits);
+    handleSongRequest(channel, userstate, message, bits).catch(error => {
+        console.error('Error procesando una donación con canción:', error);
+    });
 });
 
 async function onMessageHandler(channel, tags, message, self) {
@@ -1097,7 +1114,7 @@ app.get('/', (req, res) => {
 app.get('/status', (req, res) => {
     const status = {
         twitch: client.readyState() === 'OPEN' ? 'Connected' : 'Disconnected',
-        youtube: oauth2Client.credentials ? 'Authenticated' : 'Not Authenticated',
+        youtube: (oauth2Client.credentials.access_token || oauth2Client.credentials.refresh_token) ? 'Authenticated' : 'Not Authenticated',
         uptime: process.uptime(),
         bot_user: BOT_USER_ID || 'Pending',
         channel: CHANNEL_ID || 'Pending'

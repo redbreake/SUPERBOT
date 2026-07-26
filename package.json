@@ -4,14 +4,22 @@
   "description": "Bot de Twitch que agrega videos de YouTube a una playlist cuando recibe bits",
   "main": "bot.js",
   "scripts": {
-    "start": "node bot.js"
+    "start": "node bot.js",
+    "check": "node --check bot.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20 <26"
+  },
+  "overrides": {
+    "gaxios": "^7.3.0"
   },
   "dependencies": {
     "@google/genai": "^1.46.0",
     "axios": "^1.10.0",
     "dotenv": "^16.3.1",
     "express": "^5.1.0",
-    "googleapis": "^128.0.0",
+    "googleapis": "^173.0.0",
     "tmi.js": "^1.8.5"
   },
   "keywords": [
