@@ -9,7 +9,7 @@
     "test": "node --test"
   },
   "engines": {
-    "node": ">=20 <26"
+    "node": "22.x"
   },
   "overrides": {
     "gaxios": "^7.3.0"
