@@ -6,7 +6,7 @@ respuestas con Gemini.
 
 ## Requisitos
 
-- Node.js 20 a 25
+- Node.js 22 LTS
 - npm
 - Credenciales de Twitch
 - Credenciales de Google/YouTube si se usa la playlist
