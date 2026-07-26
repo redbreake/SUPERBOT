@@ -23,3 +23,5 @@ __pycache__/
 # Archivos del sistema
 .DS_Store
 npm-debug.log*
+extra_replies.js
+prender_secreto.bat
