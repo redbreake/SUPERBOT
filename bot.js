@@ -1037,7 +1037,11 @@ async function onMessageHandler(channel, tags, message, self) {
             }
             break;
         case 'playlist': if (config.PLAYLIST_ID) client.say(channel, `Playlist: https://www.youtube.com/playlist?list=${config.PLAYLIST_ID}`); break;
-        case 'comandos': client.say(channel, `Stream: !hoy, !settitulo | Juegos: !adivina, !pokemon, !hoyoverse | Tops: !tops, !topspkm, !topshoyo | Música: !playlist | Otros: !reto, !muertes.`); break;
+        case 'resubido':
+        case 'resubidos':
+            client.say(channel, 'Resubidos: https://resubidos.lolweapon.com/');
+            break;
+        case 'comandos': client.say(channel, `Stream: !hoy, !settitulo | Juegos: !adivina, !pokemon, !hoyoverse | Tops: !tops, !topspkm, !topshoyo | Enlaces: !playlist, !resubidos | Otros: !reto, !muertes.`); break;
     }
 }
 
