@@ -16,6 +16,7 @@ const { GoogleGenAI } = require('@google/genai');
 const { validateConfig } = require('./lib/config');
 const { parseLrc } = require('./lib/lrc');
 const { extractVideoId, findYouTubeUrls } = require('./lib/youtube-utils');
+const { TemporaryCommands } = require('./lib/temporary-commands');
 
 // Inicializar Gemini
 let aiClient = null;
@@ -66,6 +67,15 @@ let commandEditorState = {
     editorUsername: null
 };
 let autoModActive = true; 
+const BUILT_IN_COMMANDS = [
+    'k', 'u', 'permit', 'pararmod', 'activarmod', 'duda', 'duelo', 'desenfundar',
+    'nuke', 'title', 'game', 'hoy', 'settitulo', 'crear', 'comando', 'guardar',
+    'cancelar', 'piramide', 'cantar', 'stopcantar', 'reto', 'muertes',
+    'resetmuertes', '+muertes', 'adivina', 'parar', 'tops', 'pokemon',
+    'pararpkm', 'topspkm', 'hoyoverse', 'pararhoyo', 'topshoyo', 'añadir',
+    'cupon', 'playlist', 'resubido', 'resubidos', 'comandos'
+];
+const temporaryCommands = new TemporaryCommands(BUILT_IN_COMMANDS);
 // Estado para el Duelo del Oeste (1vs1 de reflejos)
 let westernDuel = {
     step: 0, // 0: Inactivo, 1: Esperando Aceptar, 2: Tensión (Pre-Bang), 3: Disparo (Bang)
@@ -852,6 +862,32 @@ async function onMessageHandler(channel, tags, message, self) {
             break;
         }
 
+        case 'crear': {
+            if (!isMod && tags.badges?.broadcaster !== '1') return;
+
+            const nameIndex = args.findIndex(Boolean);
+            const commandName = nameIndex >= 0 ? args[nameIndex] : '';
+            const response = nameIndex >= 0 ? args.slice(nameIndex + 1).join(' ').trim() : '';
+            const result = temporaryCommands.create(commandName, response);
+
+            if (!result.ok) {
+                if (result.error === 'reserved_name') {
+                    client.say(channel, `❌ !${result.name} ya es un comando interno del bot.`);
+                } else if (result.error === 'invalid_name') {
+                    client.say(channel, '❌ El nombre debe tener hasta 25 letras, números, guiones o guiones bajos.');
+                } else if (result.error === 'response_too_long') {
+                    client.say(channel, '❌ La respuesta no puede superar los 450 caracteres.');
+                } else {
+                    client.say(channel, 'Uso: !crear <!comando> <respuesta>');
+                }
+                break;
+            }
+
+            const action = result.updated ? 'actualizado' : 'creado';
+            client.say(channel, `✅ Comando !${result.name} ${action} temporalmente.`);
+            break;
+        }
+
         // =================================================================
         // ==      AÑADE ESTOS DOS NUEVOS COMANDOS DE EDICIÓN AQUÍ        ==
         // =================================================================
@@ -1041,7 +1077,12 @@ async function onMessageHandler(channel, tags, message, self) {
         case 'resubidos':
             client.say(channel, 'Resubidos: https://resubidos.lolweapon.com/');
             break;
-        case 'comandos': client.say(channel, `Stream: !hoy, !settitulo | Juegos: !adivina, !pokemon, !hoyoverse | Tops: !tops, !topspkm, !topshoyo | Enlaces: !playlist, !resubidos | Otros: !reto, !muertes.`); break;
+        case 'comandos': client.say(channel, `Stream: !hoy, !settitulo | Juegos: !adivina, !pokemon, !hoyoverse | Tops: !tops, !topspkm, !topshoyo | Enlaces: !playlist, !resubidos | Otros: !reto, !muertes | Mods: !crear.`); break;
+        default: {
+            const temporaryResponse = temporaryCommands.get(commandLower);
+            if (temporaryResponse) client.say(channel, temporaryResponse);
+            break;
+        }
     }
 }
 
