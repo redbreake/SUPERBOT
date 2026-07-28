@@ -85,6 +85,20 @@ de Twitch, YouTube y el tiempo de actividad.
 
 Los archivos LRC deben usar marcas como `[00:12.50]Texto`.
 
+## Comandos temporales
+
+Los moderadores y el broadcaster pueden crear respuestas simples propias de
+SUPERBOT:
+
+```text
+!crear !nombre Respuesta del comando
+```
+
+Después, cualquier usuario puede ejecutar `!nombre`. Repetir `!crear` con el
+mismo nombre actualiza su respuesta. Estos comandos viven únicamente en memoria
+y desaparecen cuando el proceso del bot se reinicia o vuelve a desplegarse.
+Los comandos internos no se pueden sobrescribir.
+
 ## Seguridad operativa
 
 - Cambia inmediatamente cualquier token que haya sido expuesto.
