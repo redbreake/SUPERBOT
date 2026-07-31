@@ -51,7 +51,8 @@ let BOT_USER_ID = '';
 let CHANNEL_ID = ''; // --> AÑADE ESTA LÍNEA: Guardaremos el ID del canal del streamer aquí
 let activeReto = { isActive: false, challenger: null, challenged: null, timestamp: null };
 const RETO_EXPIRATION_SECONDS = 60;
-const DEATHS_FILE = path.join(__dirname, 'spacemarine2_deaths.json');
+const DEATHS_GAME = 'Rayman';
+const DEATHS_FILE = path.join(__dirname, 'rayman_deaths.json');
 const songQueue = [];
 let isProcessingQueue = false;
 let couponCount = 0;
@@ -89,7 +90,7 @@ let westernDuel = {
 // --- CLASES DE MANEJO DE DATOS ---
 class DeathCounter {
     constructor() { this.loadDeaths(); }
-    loadDeaths() { try { if (fs.existsSync(DEATHS_FILE)) { this.data = JSON.parse(fs.readFileSync(DEATHS_FILE, 'utf8')); } else { this.data = { deaths: 0, lastUpdated: new Date().toISOString(), game: 'Warhammer 40k: Space marine 2' }; this.saveDeaths(); } } catch (e) { console.error('Error cargando muertes:', e); this.data = { deaths: 0, lastUpdated: new Date().toISOString(), game: 'Warhammer 40k: Space marine 2' }; } }
+    loadDeaths() { try { if (fs.existsSync(DEATHS_FILE)) { this.data = JSON.parse(fs.readFileSync(DEATHS_FILE, 'utf8')); } else { this.data = { deaths: 0, lastUpdated: new Date().toISOString(), game: DEATHS_GAME }; this.saveDeaths(); } } catch (e) { console.error('Error cargando muertes:', e); this.data = { deaths: 0, lastUpdated: new Date().toISOString(), game: DEATHS_GAME }; } }
     saveDeaths() { try { fs.writeFileSync(DEATHS_FILE, JSON.stringify(this.data, null, 2)); } catch (e) { console.error('Error guardando muertes:', e); } }
     addDeaths(amount = 1) { this.data.deaths += amount; this.data.lastUpdated = new Date().toISOString(); this.saveDeaths(); return this.data.deaths; }
     getCurrentDeaths() { return this.data.deaths; }
