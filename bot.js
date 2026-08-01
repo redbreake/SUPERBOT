@@ -17,6 +17,7 @@ const { validateConfig } = require('./lib/config');
 const { parseLrc } = require('./lib/lrc');
 const { extractVideoId, findYouTubeUrls } = require('./lib/youtube-utils');
 const { TemporaryCommands } = require('./lib/temporary-commands');
+const { getPinnedChatMessage, sendPinnedChatMessage, unpinChatMessage } = require('./lib/twitch-pins');
 
 // Inicializar Gemini
 let aiClient = null;
@@ -74,7 +75,8 @@ const BUILT_IN_COMMANDS = [
     'cancelar', 'piramide', 'cantar', 'stopcantar', 'reto', 'muertes',
     'resetmuertes', '+muertes', 'adivina', 'parar', 'tops', 'pokemon',
     'pararpkm', 'topspkm', 'hoyoverse', 'pararhoyo', 'topshoyo', 'añadir',
-    'cupon', 'playlist', 'resubido', 'resubidos', 'comandos'
+    'cupon', 'playlist', 'resubido', 'resubidos', 'comandos', 'fijar',
+    'quitarfijado'
 ];
 const temporaryCommands = new TemporaryCommands(BUILT_IN_COMMANDS);
 // Estado para el Duelo del Oeste (1vs1 de reflejos)
@@ -647,6 +649,70 @@ async function onMessageHandler(channel, tags, message, self) {
             linkPermits[targetUsername] = expirationTime;
 
             client.say(channel, `✅ @${targetUsername} tiene permiso para enviar un link durante los próximos 60 segundos.`);
+            break;
+        }
+
+        case 'fijar': {
+            if (!isMod && tags.badges?.broadcaster !== '1') return;
+
+            const pinnedText = args.join(' ').trim();
+            if (!pinnedText) {
+                client.say(channel, 'Uso: !fijar <mensaje>');
+                return;
+            }
+            if (pinnedText.length > 500) {
+                client.say(channel, 'El mensaje fijado no puede superar los 500 caracteres.');
+                return;
+            }
+
+            try {
+                const result = await sendPinnedChatMessage(axios, {
+                    broadcasterId: CHANNEL_ID,
+                    moderatorId: BOT_USER_ID,
+                    clientId: config.TWITCH_CLIENT_ID,
+                    accessToken: config.TWITCH_ACCESS_TOKEN,
+                    message: pinnedText
+                });
+
+                if (!result?.is_sent) {
+                    const reason = result?.drop_reason?.message || 'Twitch rechazó el mensaje.';
+                    client.say(channel, `No se pudo fijar el mensaje: ${reason}`);
+                }
+            } catch (e) {
+                console.error('Error al fijar el mensaje:', e.response ? e.response.data : e.message);
+                client.say(channel, 'No se pudo fijar el mensaje en Twitch.');
+            }
+            break;
+        }
+
+        case 'quitarfijado': {
+            if (!isMod && tags.badges?.broadcaster !== '1') return;
+
+            try {
+                const pinnedMessage = await getPinnedChatMessage(axios, {
+                    broadcasterId: CHANNEL_ID,
+                    moderatorId: BOT_USER_ID,
+                    clientId: config.TWITCH_CLIENT_ID,
+                    accessToken: config.TWITCH_ACCESS_TOKEN
+                });
+
+                if (!pinnedMessage) {
+                    client.say(channel, 'No hay ningún mensaje fijado.');
+                    return;
+                }
+
+                await unpinChatMessage(axios, {
+                    broadcasterId: CHANNEL_ID,
+                    moderatorId: BOT_USER_ID,
+                    clientId: config.TWITCH_CLIENT_ID,
+                    accessToken: config.TWITCH_ACCESS_TOKEN,
+                    messageId: pinnedMessage.message_id
+                });
+                client.say(channel, 'Mensaje fijado retirado.');
+            } catch (e) {
+                console.error('Error al quitar el mensaje fijado:', e.response ? e.response.data : e.message);
+                client.say(channel, 'No se pudo quitar el mensaje fijado en Twitch.');
+            }
             break;
         }
 

@@ -99,6 +99,20 @@ mismo nombre actualiza su respuesta. Estos comandos viven únicamente en memoria
 y desaparecen cuando el proceso del bot se reinicia o vuelve a desplegarse.
 Los comandos internos no se pueden sobrescribir.
 
+## Mensajes fijados
+
+Los moderadores y el broadcaster pueden gestionar el mensaje fijado del chat:
+
+```text
+!fijar <mensaje>
+!quitarfijado
+```
+
+`!fijar` publica el texto desde la cuenta del bot y lo fija durante 20 minutos,
+la duración establecida por Twitch para este tipo de envío. Si ya existe otro
+mensaje fijado por moderación, Twitch lo reemplaza. `!quitarfijado` retira el
+mensaje fijado actual, aunque lo haya fijado otro moderador.
+
 ## Seguridad operativa
 
 - Cambia inmediatamente cualquier token que haya sido expuesto.
