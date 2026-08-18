@@ -85,6 +85,14 @@ de Twitch, YouTube y el tiempo de actividad.
 
 Los archivos LRC deben usar marcas como `[00:12.50]Texto`.
 
+## Moderación de enlaces
+
+Cuando la automoderación está activa, los enlaces enviados por usuarios sin
+privilegios se eliminan, salvo que tengan un `!permit` vigente. Los clips
+oficiales con formato `clips.twitch.tv/...` o
+`twitch.tv/<canal>/clip/...` están permitidos. Si el mismo mensaje contiene
+además otro enlace, se modera normalmente.
+
 ## Comandos temporales
 
 Los moderadores y el broadcaster pueden crear respuestas simples propias de
