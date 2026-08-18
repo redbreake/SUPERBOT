@@ -18,6 +18,7 @@ const { parseLrc } = require('./lib/lrc');
 const { extractVideoId, findYouTubeUrls } = require('./lib/youtube-utils');
 const { TemporaryCommands } = require('./lib/temporary-commands');
 const { getPinnedChatMessage, sendPinnedChatMessage, unpinChatMessage } = require('./lib/twitch-pins');
+const { containsModeratedLink } = require('./lib/link-utils');
 
 // Inicializar Gemini
 let aiClient = null;
@@ -126,12 +127,6 @@ const hoyoverseGame = new GuessingGame(path.join(__dirname, 'hoyoverse.json'), '
 const animeScoreTracker = new ScoreTracker(path.join(__dirname, 'anime_scores.json'));
 const pokemonScoreTracker = new ScoreTracker(path.join(__dirname, 'pokemon_scores.json'));
 const hoyoverseScoreTracker = new ScoreTracker(path.join(__dirname, 'hoyoverse_scores.json'));
-function findLinks(message) {
-    // Esta expresión regular detecta cualquier URL que empiece por http:// o https://
-    const urlPattern = /(https?:\/\/[^\s]+)/g;
-    return message.match(urlPattern) || [];
-}
-
 class KaraokeSystem {
     constructor(lyricsDir) {
         this.lyricsDir = lyricsDir;
@@ -536,7 +531,7 @@ async function onMessageHandler(channel, tags, message, self) {
         }
 
         // MÓDULO 2: Detección de Links
-        if (findLinks(message).length > 0) {
+        if (containsModeratedLink(message)) {
             // Comprobamos si el usuario NO tiene privilegios (sub/mod/bits)
             if (!isUserPrivileged(tags) && !tags.bits) {
 
