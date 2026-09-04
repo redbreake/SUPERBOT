@@ -11,7 +11,11 @@ test('responde con kalatClown a randomonio13', () => {
     });
 });
 
-test('permite pirámides de hasta 10 a redbreake1', () => {
+test('permite pirámides de hasta 10 a redbreake y redbreake1', () => {
+    assert.deepEqual(getPyramidPolicy('redbreake'), {
+        response: null,
+        maxSize: 10
+    });
     assert.deepEqual(getPyramidPolicy('redbreake1'), {
         response: null,
         maxSize: 10
