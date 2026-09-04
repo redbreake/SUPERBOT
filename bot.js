@@ -12,6 +12,7 @@ const readline = require('readline');
 const axios = require('axios');
 const path = require('path');
 const express = require('express');
+const { getPyramidPolicy } = require('./lib/pyramid-policy');
 const { GoogleGenAI } = require('@google/genai');
 const { validateConfig } = require('./lib/config');
 const { parseLrc } = require('./lib/lrc');
@@ -1015,6 +1016,12 @@ async function onMessageHandler(channel, tags, message, self) {
         // =================================================================
 
         case 'piramide': {
+            const pyramidPolicy = getPyramidPolicy(username);
+            if (pyramidPolicy.response) {
+                client.say(channel, pyramidPolicy.response);
+                return;
+            }
+
             if (!isMod) return; // ¡Solo para mods!
 
             let size = 3; // Tamaño por defecto si no se especifica
@@ -1032,8 +1039,8 @@ async function onMessageHandler(channel, tags, message, self) {
             }
 
             // Limitamos el tamaño para no abusar y causar problemas
-            if (size > 10 || size < 2) {
-                client.say(channel, "El tamaño de la pirámide debe ser entre 2 y 5.");
+            if (size > pyramidPolicy.maxSize || size < 2) {
+                client.say(channel, `El tamaño de la pirámide debe ser entre 2 y ${pyramidPolicy.maxSize}.`);
                 return;
             }
 
