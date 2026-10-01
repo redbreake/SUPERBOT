@@ -77,7 +77,7 @@ const BUILT_IN_COMMANDS = [
     'cancelar', 'piramide', 'cantar', 'stopcantar', 'reto', 'muertes',
     'resetmuertes', '+muertes', 'adivina', 'parar', 'tops', 'pokemon',
     'pararpkm', 'topspkm', 'hoyoverse', 'pararhoyo', 'topshoyo', 'añadir',
-    'cupon', 'playlist', 'resubido', 'resubidos', 'comandos', 'fijar',
+    'cupon', 'playlist', 'resubido', 'resubidos', 'comandos', 'pala', 'fijar',
     'quitarfijado'
 ];
 const temporaryCommands = new TemporaryCommands(BUILT_IN_COMMANDS);
@@ -1095,6 +1095,37 @@ async function onMessageHandler(channel, tags, message, self) {
         case 'muertes':
             client.say(channel, `💀 Muertes actuales en ${deathCounter.data.game}: ${deathCounter.getCurrentDeaths()}`);
             break;
+        case 'pala': {
+            try {
+                const response = await axios.get('https://api.twitch.tv/helix/videos', {
+                    headers: {
+                        'Client-ID': config.TWITCH_CLIENT_ID,
+                        'Authorization': `Bearer ${config.TWITCH_ACCESS_TOKEN}`
+                    },
+                    params: {
+                        user_id: CHANNEL_ID,
+                        type: 'archive',
+                        first: 1,
+                        sort: 'time'
+                    }
+                });
+                const lastVod = response.data.data?.[0];
+                const streamStartedAt = lastVod ? Date.parse(lastVod.created_at) : NaN;
+
+                if (!Number.isFinite(streamStartedAt) || streamStartedAt > Date.now()) {
+                    client.say(channel, 'No encuentro el último VOD guardado de Kala para calcular los días sin pala.');
+                    break;
+                }
+
+                const daysSinceStream = Math.floor((Date.now() - streamStartedAt) / 86_400_000);
+                const dayLabel = daysSinceStream === 1 ? 'día' : 'días';
+                client.say(channel, `Kala lleva ${daysSinceStream} ${dayLabel} sin agarrar la pala (desde el inicio de su último stream).`);
+            } catch (error) {
+                console.error('Error al consultar el último VOD para !pala:', error.response?.data || error.message);
+                client.say(channel, 'No pude consultar cuándo fue el último stream de Kala.');
+            }
+            break;
+        }
         case 'resetmuertes': {
             if (!isAuthorized(username)) return;
             const newCount = args.length > 0 ? parseInt(args[0]) : 0;
@@ -1146,7 +1177,7 @@ async function onMessageHandler(channel, tags, message, self) {
         case 'resubidos':
             client.say(channel, 'Resubidos: https://resubidos.lolweapon.com/');
             break;
-        case 'comandos': client.say(channel, `Stream: !hoy, !settitulo | Juegos: !adivina, !pokemon, !hoyoverse | Tops: !tops, !topspkm, !topshoyo | Enlaces: !playlist, !resubidos | Otros: !reto, !muertes | Mods: !crear.`); break;
+        case 'comandos': client.say(channel, `Stream: !hoy, !settitulo | Juegos: !adivina, !pokemon, !hoyoverse | Tops: !tops, !topspkm, !topshoyo | Enlaces: !playlist, !resubidos | Otros: !reto, !muertes, !pala | Mods: !crear.`); break;
         default: {
             const temporaryResponse = temporaryCommands.get(commandLower);
             if (temporaryResponse) client.say(channel, temporaryResponse);
