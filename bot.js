@@ -1119,7 +1119,7 @@ async function onMessageHandler(channel, tags, message, self) {
 
                 const daysSinceStream = Math.floor((Date.now() - streamStartedAt) / 86_400_000);
                 const dayLabel = daysSinceStream === 1 ? 'día' : 'días';
-                client.say(channel, `Kala lleva ${daysSinceStream} ${dayLabel} sin agarrar la pala (desde el inicio de su último stream).`);
+                client.say(channel, `Kala lleva ${daysSinceStream} ${dayLabel} sin agarrar la pala.`);
             } catch (error) {
                 console.error('Error al consultar el último VOD para !pala:', error.response?.data || error.message);
                 client.say(channel, 'No pude consultar cuándo fue el último stream de Kala.');
