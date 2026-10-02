@@ -123,9 +123,10 @@ mensaje fijado actual, aunque lo haya fijado otro moderador.
 
 ## Comando `!pala`
 
-`!pala` indica cuántos días pasaron desde el inicio del VOD archivado más
-reciente de Kala. El cálculo depende de que Twitch haya guardado ese VOD; si
-no encuentra uno, el bot lo indicará en el chat.
+`!pala` informa el estado de stream de Kala. Si está transmitiendo en directo en
+ese momento, el bot lo aclara en el chat. Si está offline, calcula cuánto tiempo
+pasó desde que concluyó su último stream archivado (diferenciando si terminó hoy,
+ayer o hace varios días) e incluye una breve caché en memoria para mitigar spam.
 
 ## Seguridad operativa
 
