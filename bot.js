@@ -20,6 +20,8 @@ const { extractVideoId, findYouTubeUrls } = require('./lib/youtube-utils');
 const { TemporaryCommands } = require('./lib/temporary-commands');
 const { getPinnedChatMessage, sendPinnedChatMessage, unpinChatMessage } = require('./lib/twitch-pins');
 const { containsModeratedLink } = require('./lib/link-utils');
+const { Re4EventQueue } = require('./lib/re4-event-queue');
+const { getPalaStatus } = require('./lib/pala-utils');
 
 // Inicializar Gemini
 let aiClient = null;
@@ -45,6 +47,7 @@ const config = {
     PLAYLIST_ID: process.env.PLAYLIST_ID,
     MIN_BITS_SONG: parseInt(process.env.MIN_BITS_SONG, 10) || 200,
     AUTHORIZED_USERS: (process.env.AUTHORIZED_USERS || '').toLowerCase().split(','),
+    RE4_LINK_TOKEN: process.env.RE4_LINK_TOKEN || '',
 };
 const configErrors = validateConfig(config);
 if (configErrors.length > 0) {
@@ -77,10 +80,12 @@ const BUILT_IN_COMMANDS = [
     'cancelar', 'piramide', 'cantar', 'stopcantar', 'reto', 'muertes',
     'resetmuertes', '+muertes', 'adivina', 'parar', 'tops', 'pokemon',
     'pararpkm', 'topspkm', 'hoyoverse', 'pararhoyo', 'topshoyo', 'añadir',
-    'cupon', 'playlist', 'resubido', 'resubidos', 'comandos', 'pala', 'fijar',
+    'cupon', 'playlist', 'resubido', 'resubidos', 'comandos', 'pala', 'zhao', 'fijar',
     'quitarfijado'
 ];
 const temporaryCommands = new TemporaryCommands(BUILT_IN_COMMANDS);
+const re4EventQueue = config.RE4_LINK_TOKEN ? new Re4EventQueue() : null;
+const palaCache = { text: null, timestamp: 0 };
 // Estado para el Duelo del Oeste (1vs1 de reflejos)
 let westernDuel = {
     step: 0, // 0: Inactivo, 1: Esperando Aceptar, 2: Tensión (Pre-Bang), 3: Disparo (Bang)
@@ -393,6 +398,14 @@ async function handleSongRequest(channel, tags, message, bitsAmount = 0) {
 client.on('cheer', (channel, userstate, message) => {
     const bits = userstate.bits;
     console.log(`[CHEER EVENT] Recibida donación de ${bits} bits de ${userstate.username}.`);
+    if (re4EventQueue) {
+        try {
+            const event = re4EventQueue.publish({ bits, username: userstate.username });
+            console.log(`[RE4 BITS] Evento ${event.id} en cola (${event.bits} Bits).`);
+        } catch (error) {
+            console.error('[RE4 BITS] No se pudo encolar el evento:', error.message);
+        }
+    }
     if (bits >= 1000) { client.say(channel, `¡WOW! Muchísimas gracias por esas ${bits} piedritas, @${userstate.username}! Eres increíble ❤️`); }
     handleSongRequest(channel, userstate, message, bits).catch(error => {
         console.error('Error procesando una donación con canción:', error);
@@ -1097,31 +1110,17 @@ async function onMessageHandler(channel, tags, message, self) {
             break;
         case 'pala': {
             try {
-                const response = await axios.get('https://api.twitch.tv/helix/videos', {
-                    headers: {
-                        'Client-ID': config.TWITCH_CLIENT_ID,
-                        'Authorization': `Bearer ${config.TWITCH_ACCESS_TOKEN}`
-                    },
-                    params: {
-                        user_id: CHANNEL_ID,
-                        type: 'archive',
-                        first: 1,
-                        sort: 'time'
-                    }
+                const messageText = await getPalaStatus({
+                    axios,
+                    broadcasterId: CHANNEL_ID,
+                    clientId: config.TWITCH_CLIENT_ID,
+                    accessToken: config.TWITCH_ACCESS_TOKEN,
+                    streamerName: 'Kala',
+                    cache: palaCache
                 });
-                const lastVod = response.data.data?.[0];
-                const streamStartedAt = lastVod ? Date.parse(lastVod.created_at) : NaN;
-
-                if (!Number.isFinite(streamStartedAt) || streamStartedAt > Date.now()) {
-                    client.say(channel, 'No encuentro el último VOD guardado de Kala para calcular los días sin pala.');
-                    break;
-                }
-
-                const daysSinceStream = Math.floor((Date.now() - streamStartedAt) / 86_400_000);
-                const dayLabel = daysSinceStream === 1 ? 'día' : 'días';
-                client.say(channel, `Kala lleva ${daysSinceStream} ${dayLabel} sin agarrar la pala.`);
+                client.say(channel, messageText);
             } catch (error) {
-                console.error('Error al consultar el último VOD para !pala:', error.response?.data || error.message);
+                console.error('Error al consultar el estado de pala:', error.response?.data || error.message);
                 client.say(channel, 'No pude consultar cuándo fue el último stream de Kala.');
             }
             break;
@@ -1177,7 +1176,10 @@ async function onMessageHandler(channel, tags, message, self) {
         case 'resubidos':
             client.say(channel, 'Resubidos: https://resubidos.lolweapon.com/');
             break;
-        case 'comandos': client.say(channel, `Stream: !hoy, !settitulo | Juegos: !adivina, !pokemon, !hoyoverse | Tops: !tops, !topspkm, !topshoyo | Enlaces: !playlist, !resubidos | Otros: !reto, !muertes, !pala | Mods: !crear.`); break;
+        case 'zhao':
+            client.say(channel, 'ZHAO ES MIA Y DE NADIE MÁS ALEJENSE LOS MATARE A TODOS');
+            break;
+        case 'comandos': client.say(channel, `Stream: !hoy, !settitulo | Juegos: !adivina, !pokemon, !hoyoverse | Tops: !tops, !topspkm, !topshoyo | Enlaces: !playlist, !resubidos | Otros: !reto, !muertes, !pala, !zhao | Mods: !crear.`); break;
         default: {
             const temporaryResponse = temporaryCommands.get(commandLower);
             if (temporaryResponse) client.say(channel, temporaryResponse);
@@ -1252,6 +1254,16 @@ process.on('SIGTERM', () => { console.log('\n🛑 Cerrando bot...'); client.disc
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+function requireRe4Link(request, response, next) {
+    if (!re4EventQueue || !config.RE4_LINK_TOKEN) {
+        return response.status(404).json({ error: 'Enlace RE4 no configurado.' });
+    }
+    if (request.get('authorization') !== `Bearer ${config.RE4_LINK_TOKEN}`) {
+        return response.status(401).json({ error: 'No autorizado.' });
+    }
+    return next();
+}
+
 app.get('/', (req, res) => {
     res.send('🤖 Bot está en línea y funcionando. (Keep-alive activo)');
 });
@@ -1265,6 +1277,15 @@ app.get('/status', (req, res) => {
         channel: CHANNEL_ID || 'Pending'
     };
     res.json(status);
+});
+
+app.get('/re4/events', requireRe4Link, (req, res) => {
+    res.json({ events: re4EventQueue.list() });
+});
+
+app.post('/re4/events/:id/ack', requireRe4Link, (req, res) => {
+    const acknowledged = re4EventQueue.acknowledge(req.params.id);
+    res.status(acknowledged ? 200 : 404).json({ acknowledged });
 });
 
 app.listen(PORT, '0.0.0.0', () => {
