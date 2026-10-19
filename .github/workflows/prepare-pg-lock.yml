@@ -1,7 +1,7 @@
 name: Test persistent commands
 on:
   push:
-    branches: [feature/persistent-custom-commands]
+    branches: [main, feature/persistent-custom-commands]
   pull_request:
     branches: [main]
 permissions:
