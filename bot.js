@@ -17,7 +17,7 @@ const { GoogleGenAI } = require('@google/genai');
 const { validateConfig } = require('./lib/config');
 const { parseLrc } = require('./lib/lrc');
 const { extractVideoId, findYouTubeUrls } = require('./lib/youtube-utils');
-const { TemporaryCommands } = require('./lib/temporary-commands');
+const { PersistentCommands } = require('./lib/persistent-commands');
 const { getPinnedChatMessage, sendPinnedChatMessage, unpinChatMessage } = require('./lib/twitch-pins');
 const { containsModeratedLink } = require('./lib/link-utils');
 const { Re4EventQueue } = require('./lib/re4-event-queue');
@@ -81,9 +81,9 @@ const BUILT_IN_COMMANDS = [
     'resetmuertes', '+muertes', 'adivina', 'parar', 'tops', 'pokemon',
     'pararpkm', 'topspkm', 'hoyoverse', 'pararhoyo', 'topshoyo', 'añadir',
     'cupon', 'playlist', 'resubido', 'resubidos', 'comandos', 'pala', 'zhao', 'fijar',
-    'quitarfijado'
+    'quitarfijado', 'borrar'
 ];
-const temporaryCommands = new TemporaryCommands(BUILT_IN_COMMANDS);
+const temporaryCommands = new PersistentCommands(BUILT_IN_COMMANDS);
 const re4EventQueue = config.RE4_LINK_TOKEN ? new Re4EventQueue() : null;
 const palaCache = { text: null, timestamp: 0 };
 // Estado para el Duelo del Oeste (1vs1 de reflejos)
@@ -944,13 +944,15 @@ async function onMessageHandler(channel, tags, message, self) {
             const nameIndex = args.findIndex(Boolean);
             const commandName = nameIndex >= 0 ? args[nameIndex] : '';
             const response = nameIndex >= 0 ? args.slice(nameIndex + 1).join(' ').trim() : '';
-            const result = temporaryCommands.create(commandName, response);
+            const result = await temporaryCommands.create(commandName, response);
 
             if (!result.ok) {
                 if (result.error === 'reserved_name') {
                     client.say(channel, `❌ !${result.name} ya es un comando interno del bot.`);
                 } else if (result.error === 'invalid_name') {
                     client.say(channel, '❌ El nombre debe tener hasta 25 letras, números, guiones o guiones bajos.');
+                } else if (result.error === 'database_unavailable') {
+                    client.say(channel, '❌ Base de datos no disponible. No se guardó el comando.');
                 } else if (result.error === 'response_too_long') {
                     client.say(channel, '❌ La respuesta no puede superar los 450 caracteres.');
                 } else {
@@ -960,7 +962,16 @@ async function onMessageHandler(channel, tags, message, self) {
             }
 
             const action = result.updated ? 'actualizado' : 'creado';
-            client.say(channel, `✅ Comando !${result.name} ${action} temporalmente.`);
+            client.say(channel, `✅ Comando !${result.name} ${action} ${temporaryCommands.ready ? 'permanentemente' : 'temporalmente (sin DATABASE_URL)'}.`);
+            break;
+        }
+
+        case 'borrar': {
+            if (!isMod && tags.badges?.broadcaster !== '1') return;
+            const result = await temporaryCommands.remove(args[0]);
+            if (result.ok) client.say(channel, `✅ Comando !${result.name} eliminado.`);
+            else if (result.error === 'not_found') client.say(channel, '❌ El comando personalizado no existe. Uso: !borrar <!nombre>');
+            else client.say(channel, '❌ Base de datos no disponible. No se borró el comando.');
             break;
         }
 
@@ -1179,7 +1190,12 @@ async function onMessageHandler(channel, tags, message, self) {
         case 'zhao':
             client.say(channel, 'ZHAO ES MIA Y DE NADIE MÁS ALEJENSE LOS MATARE A TODOS');
             break;
-        case 'comandos': client.say(channel, `Stream: !hoy, !settitulo | Juegos: !adivina, !pokemon, !hoyoverse | Tops: !tops, !topspkm, !topshoyo | Enlaces: !playlist, !resubidos | Otros: !reto, !muertes, !pala, !zhao | Mods: !crear.`); break;
+        case 'comandos': {
+            const custom = [...temporaryCommands.commands.keys()].map(name => `!${name}`);
+            const customText = custom.length ? ` | Personalizados: ${custom.join(', ').slice(0, 180)}` : '';
+            client.say(channel, `Stream: !hoy, !settitulo | Juegos: !adivina, !pokemon, !hoyoverse | Tops: !tops, !topspkm, !topshoyo | Enlaces: !playlist, !resubidos | Otros: !reto, !muertes, !pala, !zhao | Mods: !crear, !borrar.${customText}`);
+            break;
+        }
         default: {
             const temporaryResponse = temporaryCommands.get(commandLower);
             if (temporaryResponse) client.say(channel, temporaryResponse);
@@ -1193,6 +1209,7 @@ async function onMessageHandler(channel, tags, message, self) {
 // =============================================================================
 
 async function startBot() {
+    await temporaryCommands.initialize();
     // 1. Autenticar con YouTube (No bloqueante)
     if (config.GOOGLE_CLIENT_ID) {
         getAccessToken().then(success => {
