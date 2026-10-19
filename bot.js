@@ -962,7 +962,7 @@ async function onMessageHandler(channel, tags, message, self) {
             }
 
             const action = result.updated ? 'actualizado' : 'creado';
-            client.say(channel, `✅ Comando !${result.name} ${action} permanentemente.`);
+            client.say(channel, `✅ Comando !${result.name} ${action} ${temporaryCommands.ready ? 'permanentemente' : 'temporalmente (sin DATABASE_URL)'}.`);
             break;
         }
 
@@ -1190,7 +1190,12 @@ async function onMessageHandler(channel, tags, message, self) {
         case 'zhao':
             client.say(channel, 'ZHAO ES MIA Y DE NADIE MÁS ALEJENSE LOS MATARE A TODOS');
             break;
-        case 'comandos': client.say(channel, `Stream: !hoy, !settitulo | Juegos: !adivina, !pokemon, !hoyoverse | Tops: !tops, !topspkm, !topshoyo | Enlaces: !playlist, !resubidos | Otros: !reto, !muertes, !pala, !zhao | Mods: !crear, !borrar.`); break;
+        case 'comandos': {
+            const custom = [...temporaryCommands.commands.keys()].map(name => `!${name}`);
+            const customText = custom.length ? ` | Personalizados: ${custom.join(', ').slice(0, 180)}` : '';
+            client.say(channel, `Stream: !hoy, !settitulo | Juegos: !adivina, !pokemon, !hoyoverse | Tops: !tops, !topspkm, !topshoyo | Enlaces: !playlist, !resubidos | Otros: !reto, !muertes, !pala, !zhao | Mods: !crear, !borrar.${customText}`);
+            break;
+        }
         default: {
             const temporaryResponse = temporaryCommands.get(commandLower);
             if (temporaryResponse) client.say(channel, temporaryResponse);
