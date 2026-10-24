@@ -132,7 +132,9 @@ ayer o hace varios días) e incluye una breve caché en memoria para mitigar spa
 
 SUPERBOT revisa cada diez minutos la pestaña Vídeos de `@Lolweapon` y actualiza
 el comando de StreamElements con el título y el enlace limpio del último vídeo
-publicado. Excluye Shorts y estrenos pendientes. Funciona cualquier día y hora,
+publicado. Solicita los títulos en español (`hl=es`, región España y cabecera
+`Accept-Language`) para evitar traducciones automáticas al inglés según la
+ubicación del servidor. Excluye Shorts y estrenos pendientes. Funciona cualquier día y hora,
 incluidos los cambios de horario de España.
 
 Utiliza la conexión PostgreSQL existente (`DATABASE_URL`) para recordar el vídeo

@@ -52,8 +52,12 @@ test('recuerda el vídeo existente sin enviar una edición y lo recupera tras re
         commands: { ready: true, pool }, channel: 'kala',
         client: { readyState: () => 'OPEN', say: () => assert.fail('No debe repetir el comando existente') },
         logger: { log() {}, error() { assert.fail('Error inesperado'); } },
-        http: { async get(url) {
-            if (url.includes('youtube.com')) return { data: page([video('aV6OW6_Ag_A', 'Título')]) };
+        http: { async get(url, options) {
+            if (url.includes('youtube.com')) {
+                assert.deepEqual(options.params, { hl: 'es', gl: 'ES' });
+                assert.equal(options.headers['Accept-Language'], 'es-ES,es;q=0.9');
+                return { data: page([video('aV6OW6_Ag_A', 'Título')]) };
+            }
             queries++;
             if (url.includes('/channels/')) return { data: { _id: 'channel' } };
             return { data: [{ command: 'spam', reply: 'Título https://youtu.be/aV6OW6_Ag_A?si=old' }] };
@@ -86,9 +90,9 @@ test('no marca como aplicado un vídeo si StreamElements rechaza la edición', a
     assert.equal(sync.busy, false);
 });
 
-test('envía título y enlace y solo persiste después de verificar la respuesta', async () => {
-    let current = 'Vídeo anterior';
-    let saved;
+test('corrige el título traducido del mismo vídeo y persiste después de verificar la respuesta', async () => {
+    let current = 'English title https://youtu.be/aV6OW6_Ag_A';
+    let saved = { id: 'aV6OW6_Ag_A', title: 'English title' };
     let sends = 0;
     const sync = new YouTubeSpamSync({
         channel: 'kala',
@@ -103,7 +107,7 @@ test('envía título y enlace y solo persiste después de verificar la respuesta
         client: { readyState: () => 'OPEN', async say(channel, text) {
             assert.equal(channel, 'kala');
             assert.equal(text, '!cmd edit spam Título https://youtu.be/aV6OW6_Ag_A');
-            assert.equal(saved, undefined);
+            assert.equal(saved.title, 'English title');
             sends++;
             current = text.slice('!cmd edit spam '.length);
         } },
