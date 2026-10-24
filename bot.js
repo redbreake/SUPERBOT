@@ -18,6 +18,7 @@ const { validateConfig } = require('./lib/config');
 const { parseLrc } = require('./lib/lrc');
 const { extractVideoId, findYouTubeUrls } = require('./lib/youtube-utils');
 const { PersistentCommands } = require('./lib/persistent-commands');
+const { YouTubeSpamSync } = require('./lib/youtube-spam-sync');
 const { getPinnedChatMessage, sendPinnedChatMessage, unpinChatMessage } = require('./lib/twitch-pins');
 const { containsModeratedLink } = require('./lib/link-utils');
 const { Re4EventQueue } = require('./lib/re4-event-queue');
@@ -1248,6 +1249,11 @@ async function startBot() {
         console.warn("👉 El bot seguirá intentando reconectar, pero algunas funciones pueden fallar hasta que el token sea válido.");
         // Ya no hacemos process.exit(1), permitimos que el servidor Express siga vivo.
     }
+
+    const youtubeSpamSync = new YouTubeSpamSync({
+        http: axios, client, commands: temporaryCommands, channel: config.CHANNEL_NAME
+    });
+    youtubeSpamSync.start();
 
     // 4. AHORA que tenemos todo, mostramos el mensaje de bienvenida completo
     console.log(`* Corriendo como '${config.BOT_USERNAME}' (ID: ${BOT_USER_ID})`);
