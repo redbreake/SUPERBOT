@@ -128,6 +128,23 @@ ese momento, el bot lo aclara en el chat. Si está offline, calcula cuánto tiem
 pasó desde que concluyó su último stream archivado (diferenciando si terminó hoy,
 ayer o hace varios días) e incluye una breve caché en memoria para mitigar spam.
 
+## Actualización automática de `!spam` (StreamElements)
+
+SUPERBOT revisa cada diez minutos la pestaña Vídeos de `@Lolweapon` y actualiza
+el comando de StreamElements con el título y el enlace limpio del último vídeo
+publicado. Excluye Shorts y estrenos pendientes. Funciona cualquier día y hora,
+incluidos los cambios de horario de España.
+
+Utiliza la conexión PostgreSQL existente (`DATABASE_URL`) para recordar el vídeo
+confirmado en `public.bot_sync_state`. Solo guarda el cambio después de comprobar
+la respuesta pública de StreamElements. Si el comando ya apunta al vídeo actual,
+conserva su enlace y registra el estado sin enviar otra edición al chat.
+
+Requiere que la cuenta del bot pueda ejecutar `!cmd edit spam` en StreamElements.
+La lectura de YouTube usa su página pública, sin otra clave ni cuota de la API;
+si cambia la estructura de esa página o hay un error, conserva el comando anterior
+y reintenta. La sincronización espera a tener PostgreSQL y Twitch conectados.
+
 ## Seguridad operativa
 
 - Cambia inmediatamente cualquier token que haya sido expuesto.
