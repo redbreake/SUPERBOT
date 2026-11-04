@@ -19,6 +19,7 @@ const { parseLrc } = require('./lib/lrc');
 const { extractVideoId, findYouTubeUrls } = require('./lib/youtube-utils');
 const { PersistentCommands } = require('./lib/persistent-commands');
 const { YouTubeSpamSync } = require('./lib/youtube-spam-sync');
+const { DailyTitle } = require('./lib/daily-title');
 const { getPinnedChatMessage, sendPinnedChatMessage, unpinChatMessage } = require('./lib/twitch-pins');
 const { containsModeratedLink } = require('./lib/link-utils');
 const { Re4EventQueue } = require('./lib/re4-event-queue');
@@ -1254,6 +1255,30 @@ async function startBot() {
         http: axios, client, commands: temporaryCommands, channel: config.CHANNEL_NAME
     });
     youtubeSpamSync.start();
+
+    const dailyTitle = new DailyTitle({
+        commands: temporaryCommands,
+        client,
+        readTitle: async () => {
+            if (!CHANNEL_ID) throw new Error('ID de canal no disponible.');
+            const response = await axios.get('https://api.twitch.tv/helix/channels', {
+                headers: {
+                    'Client-ID': config.TWITCH_CLIENT_ID,
+                    'Authorization': `Bearer ${config.TWITCH_ACCESS_TOKEN}`
+                },
+                params: { broadcaster_id: CHANNEL_ID },
+                timeout: 15000
+            });
+            const title = response.data.data?.[0]?.title;
+            if (typeof title !== 'string') throw new Error('Título no disponible.');
+            return title;
+        },
+        writeTitle: async title => {
+            await client.say(config.CHANNEL_NAME, `!settitle ${title}`);
+            await new Promise(resolve => setTimeout(resolve, 3000));
+        }
+    });
+    dailyTitle.start();
 
     // 4. AHORA que tenemos todo, mostramos el mensaje de bienvenida completo
     console.log(`* Corriendo como '${config.BOT_USERNAME}' (ID: ${BOT_USER_ID})`);

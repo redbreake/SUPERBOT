@@ -147,6 +147,25 @@ La lectura de YouTube usa su página pública, sin otra clave ni cuota de la API
 si cambia la estructura de esa página o hay un error, conserva el comando anterior
 y reintenta. La sincronización espera a tener PostgreSQL y Twitch conectados.
 
+## Título diario automático
+
+A las 00:00 de `America/Argentina/Buenos_Aires`, SUPERBOT reemplaza el título
+completo por `Hoy es <día> ok` (por ejemplo, `Hoy es jueves ok`) si han pasado
+al menos doce horas sin detectar cambios al llegar a medianoche.
+
+Comprueba el título cada cinco minutos y programa la revisión de medianoche por
+separado. Guarda título, fechas de observación y última decisión diaria en
+`public.bot_sync_state`, reutilizando `DATABASE_URL`. El cambio se realiza con
+`!settitle` de StreamElements y se verifica leyendo el título en Twitch.
+
+Twitch no proporciona la fecha del último cambio: la primera ejecución comienza
+el seguimiento sin cambiar el título. Si pierde más de seis minutos de observación,
+reinicia el plazo de doce horas, porque durante ese hueco pudo haber cambios.
+Los cambios de ida y vuelta entre dos consultas no se pueden detectar. Cada día
+decide una sola vez; si un cambio reciente impide actualizar, espera a la siguiente
+medianoche. Si el bot está desconectado toda la ventana inicial de cinco minutos,
+no realiza la actualización atrasada durante el resto del día.
+
 ## Seguridad operativa
 
 - Cambia inmediatamente cualquier token que haya sido expuesto.
